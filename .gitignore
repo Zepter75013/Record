@@ -1,0 +1,32 @@
+# OS
+.DS_Store
+
+# Secrets / environnement local
+.env
+.env.*
+!.env.example
+!frontend/env.production
+
+# Sauvegardes et données réelles de la collection (pas du code)
+backup bdd/
+backend/cmd/api/backups/
+backend/cmd/api/reports/
+backend/cmd/api/uploads/
+
+# Logs
+*.log
+
+# Binaires compilés (build artifacts, pas du code source)
+backend/cmd/api/api
+backend/cmd/api/api.exe
+backend/cmd/api/records
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/coverage/
+frontend/*.local
+
+# Sessions Claude Code locales
+.claude/

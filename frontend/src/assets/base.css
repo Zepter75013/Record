@@ -1,0 +1,139 @@
+/* Overrides d'affichage pour .data-table. Les variables --table-header-color,
+   --odd-row-color et --border-color sont définies une seule fois, dans le
+   :root global de App.vue. */
+
+/* --- 1. DÉBLOQUER L'AFFICHAGE DE L'EN-TÊTE (CRITIQUE) --- */
+
+/* Annule les masquages agressifs et force la visibilité de l'en-tête et des cellules */
+
+.data-table thead,
+
+.data-table thead th {
+
+    display: revert !important;
+
+    visibility: visible !important;
+
+    height: auto !important;
+
+}
+
+
+
+/* Applique la couleur de fond et le style de l'en-tête (Si non déjà fait localement) */
+
+.data-table thead th {
+
+    background-color: var(--table-header-color) !important;
+
+    color: white !important;
+
+    font-weight: 800 !important;
+
+    /* Pour la séparation entre les TH et la simulation d'ombre */
+
+    box-shadow: inset -1px 0 0 0 rgba(255, 255, 255, 0.2);
+
+}
+
+.data-table thead th:last-child {
+
+    box-shadow: none !important;
+
+}
+
+
+
+/* --- 2. ANNULER LES BORDURES ET FONDS AGRESSIFS SUR LE CORPS --- */
+
+.data-table,
+
+.data-table tr,
+
+.data-table th,
+
+.data-table td {
+
+    border: none !important;
+
+    background-color: transparent !important;
+
+    box-shadow: none !important;
+
+}
+
+
+
+/* --- 3. RÉAPPLIQUER LA SÉPARATION ET LES BANDES ALTERNÉES --- */
+
+
+
+/* Applique la couleur de fond aux lignes alternées (Horizontal Separation) */
+
+.data-table tbody tr.odd-row td {
+
+    background-color: var(--odd-row-color) !important;
+
+}
+
+
+
+.data-table tbody tr.even-row td {
+
+    background-color: white !important;
+
+}
+
+
+
+/* SIMULATION DE BORDURES (Dernier recours) */
+
+
+
+/* Séparation horizontale (Ligne en bas de chaque cellule) */
+
+.data-table tbody td {
+
+    /* Ceci est la ligne de démarcation du bas */
+
+    box-shadow: inset 0 -1px 0 0 var(--border-color) !important;
+
+}
+
+
+
+/* Séparation verticale (Ligne à droite de chaque cellule) */
+
+.data-table tbody td:not(:last-child) {
+
+    /* Ajout de la ligne verticale ET maintien de la ligne horizontale */
+
+    box-shadow: inset -1px 0 0 0 var(--border-color), inset 0 -1px 0 0 var(--border-color) !important;
+
+}
+
+
+
+/* Nettoyage de la dernière ligne et colonne */
+
+.data-table tbody tr:last-child td {
+
+    box-shadow: inset -1px 0 0 0 var(--border-color) !important; /* Maintient le vertical */
+
+}
+
+
+
+.data-table tbody td:last-child {
+
+    box-shadow: inset 0 -1px 0 0 var(--border-color) !important; /* Maintient l'horizontal */
+
+}
+
+
+
+.data-table tbody tr:last-child td:last-child {
+
+    box-shadow: none !important;
+
+}
