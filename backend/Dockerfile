@@ -3,18 +3,25 @@
 # ============================================
 FROM golang:1.21-alpine AS builder
 
+# Installer les dépendances de build
 RUN apk add --no-cache git ca-certificates tzdata
 
 WORKDIR /build
 
+# Copier les fichiers de dépendances Go
 COPY go.mod go.sum ./
+
+# Télécharger les dépendances
 RUN go mod download
 
+# Copier le code source
 COPY . .
 
+# Compiler l'application pour Linux
+# CGO_ENABLED=0 pour un binaire statique
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-w -s" \
-    -o /build/records-api \
+    -o /build/api \
     ./cmd/api
 
 # ============================================
@@ -22,22 +29,28 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 # ============================================
 FROM alpine:3.19
 
-# mariadb-client fournit les binaires "mysql" et "mysqldump" utilisés par la
-# fonctionnalité de sauvegarde/restauration (internal/backup/service.go).
+# Installer les certificats CA, timezone, et mariadb-client (fournit les
+# binaires "mysql"/"mysqldump" utilisés par la fonctionnalité Sauvegarde,
+# internal/backup/service.go).
 RUN apk --no-cache add ca-certificates tzdata mariadb-client
 
+# Créer un utilisateur non-root pour la sécurité
 RUN adduser -D -g '' appuser
 
 WORKDIR /app
 
-COPY --from=builder /build/records-api .
+# Copier le binaire depuis le stage de build
+COPY --from=builder /build/api .
 
-# Dossiers d'état persistant (montés en volumes par docker-compose)
-RUN mkdir -p /app/uploads /app/backups /app/reports \
-    && chown -R appuser:appuser /app
+# Créer les dossiers persistants avec les bonnes permissions (montés en
+# volumes par docker-compose)
+RUN mkdir -p /app/uploads/covers /app/backups /app/reports && chown -R appuser:appuser /app
 
+# Utiliser l'utilisateur non-root
 USER appuser
 
+# Port exposé
 EXPOSE 8080
 
-CMD ["./records-api"]
+# Commande de démarrage
+CMD ["./api"]

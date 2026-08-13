@@ -5,15 +5,24 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Chemin relatif, proxié en interne par nginx vers le backend (voir
-# nginx.conf) — pas de domaine/port à connaître au moment du build.
-ARG VITE_API_BASE_URL=/api
-ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+# Arguments passés au build Vite
+ARG VITE_API_BASE_URL
+ARG VITE_SERVER_BASE_URL
 
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+ENV VITE_SERVER_BASE_URL=${VITE_SERVER_BASE_URL}
+
+
+# Copier les fichiers de dépendances
 COPY package*.json ./
+
+# Installer les dépendances
 RUN npm ci
 
+# Copier le code source
 COPY . .
+
+# Build de production
 RUN npm run build
 
 # ============================================
@@ -21,9 +30,18 @@ RUN npm run build
 # ============================================
 FROM nginx:alpine
 
+# Supprimer la config par défaut
 RUN rm -f /etc/nginx/conf.d/default.conf
+RUN rm -f /etc/nginx/nginx.conf
 
+# Copier les fichiers buildés depuis le stage précédent
 COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
+# Créer le dossier pour les certificats SSL (montés en volume)
+RUN mkdir -p /etc/nginx/ssl
+
+# Exposer les ports HTTP et HTTPS
+EXPOSE 80 443
+
+# Commande de démarrage
+CMD ["nginx", "-g", "daemon off;"]

@@ -14,6 +14,15 @@ backend/cmd/api/reports/
 backend/cmd/api/uploads/
 records-data/
 
+# Déploiement NAS — données réelles, certificats, dumps (montés en volumes,
+# jamais du code)
+/uploads/
+/Dumps/
+/ssl/
+/denied/
+/permission/
+*.swp
+
 # Logs
 *.log
 
