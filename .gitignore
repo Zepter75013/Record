@@ -12,6 +12,7 @@ backup bdd/
 backend/cmd/api/backups/
 backend/cmd/api/reports/
 backend/cmd/api/uploads/
+records-data/
 
 # Logs
 *.log

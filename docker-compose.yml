@@ -1,0 +1,62 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: records-backend
+    restart: always
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      HTTP_PORT: 8080
+      JWT_SECRET: ${JWT_SECRET}
+      DISCOGS_TOKEN: ${DISCOGS_TOKEN:-}
+      UPLOADS_DIR: ./uploads
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Vinyl Manager}
+      FRONTEND_URL: ${FRONTEND_URL}
+    # Accès direct optionnel (debug/API) — à retirer si un reverse-proxy
+    # externe se charge de tout exposer.
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./records-data/uploads:/app/uploads
+      - ./records-data/backups:/app/backups
+      - ./records-data/reports:/app/reports
+      - ./records-data/backup-settings.json:/app/backup-settings.json
+    networks:
+      - disques-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    container_name: records-frontend
+    restart: always
+    # Accès direct optionnel — à retirer si un reverse-proxy externe route
+    # déjà vers l'alias "records-frontend" sur le réseau partagé.
+    ports:
+      - "8082:80"
+    depends_on:
+      - backend
+    networks:
+      disques-network:
+        aliases:
+          - records-frontend
+
+networks:
+  # Réseau partagé avec l'app Finance (référencé par son docker-compose.yml
+  # comme réseau externe "disques-manager_disques-network") — déjà créé sur
+  # le NAS, on ne fait que le rejoindre ici, pas le recréer.
+  disques-network:
+    external: true
+    name: disques-manager_disques-network
