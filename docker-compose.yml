@@ -54,9 +54,10 @@ services:
           - records-frontend
 
 networks:
-  # Réseau partagé avec l'app Finance (référencé par son docker-compose.yml
-  # comme réseau externe "disques-manager_disques-network") — déjà créé sur
-  # le NAS, on ne fait que le rejoindre ici, pas le recréer.
+  # Réseau partagé avec l'app Finance et le conteneur MySQL "bdd-mysql" (qui
+  # héberge les bases des deux apps) — déjà créé sur le NAS, on ne fait que
+  # le rejoindre ici, pas le recréer. Pas de service MySQL dans ce fichier :
+  # DB_HOST=bdd-mysql (voir .env.example) suffit à s'y connecter.
   disques-network:
     external: true
     name: disques-manager_disques-network
