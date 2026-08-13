@@ -136,37 +136,24 @@ const viewVinylDetails = (vinyl) => {
   router.push(`/dashboard/vinyls`)
 }
 
-// Normaliser l'URL de la pochette avec gestion HTTPS
+// Normaliser l'URL de la pochette — même logique que getImageUrl de
+// DiscsView.vue : en production VITE_SERVER_BASE_URL est vide et nginx
+// proxifie /uploads/ sur le même domaine (voir nginx.conf), donc une URL
+// relative suffit. Un port codé en dur ici pointerait dans le vide.
 const normalizeCoverUrl = (url) => {
   if (!url) return ''
-  
+
   // Si l'URL est déjà complète avec protocole
   if (url.startsWith('https://') || url.startsWith('http://')) {
     return url.replace('http://', 'https://') // Forcer HTTPS en production
   }
-  
-  // Récupérer l'URL du serveur depuis les variables d'environnement
-  let SERVER_BASE_URL = import.meta.env.VITE_SERVER_BASE_URL
-  
-  // Si VITE_SERVER_BASE_URL est vide ou undefined, construire l'URL
-  if (!SERVER_BASE_URL || SERVER_BASE_URL.trim() === '') {
-    // Utiliser le même domaine que l'application frontend
-    const protocol = window.location.protocol
-    const hostname = window.location.hostname
-    const port = '8443' // Port par défaut du backend
-    SERVER_BASE_URL = `${protocol}//${hostname}:${port}`
-  }
-  
-  // S'assurer que c'est en HTTPS en production
-  if (window.location.protocol === 'https:') {
-    SERVER_BASE_URL = SERVER_BASE_URL.replace('http://', 'https://')
-  }
-  
-  // Construire l'URL complète
+
+  const SERVER_BASE_URL = import.meta.env.VITE_SERVER_BASE_URL || ''
+
   if (url.startsWith('/')) {
     return `${SERVER_BASE_URL}${url}`
   }
-  
+
   return `${SERVER_BASE_URL}/uploads/${url}`
 }
 
