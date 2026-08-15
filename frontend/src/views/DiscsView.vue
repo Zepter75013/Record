@@ -3553,11 +3553,12 @@ border-top: 1px solid var(--line-soft);
 }
 .action-button-mobile {
 flex: 1;
+min-width: 0;
 display: flex;
 align-items: center;
 justify-content: center;
 gap: 6px;
-padding: 10px 16px;
+padding: 10px 8px;
 border: none;
 border-radius: 8px;
 font-size: 0.9em;
@@ -3567,6 +3568,12 @@ transition: all 0.2s;
 }
 .action-button-mobile .icon {
 font-size: 18px;
+flex-shrink: 0;
+}
+.action-button-mobile span:not(.icon) {
+overflow: hidden;
+text-overflow: ellipsis;
+white-space: nowrap;
 }
 .action-button-mobile.edit-button {
 background: var(--accent);
@@ -3594,6 +3601,15 @@ cursor: not-allowed;
 @media (max-width: 480px) {
 .page-header h1 {
 font-size: 1.5em;
+}
+.card-actions-bottom {
+gap: 4px;
+padding: 8px 10px;
+}
+.action-button-mobile {
+padding: 8px 4px;
+gap: 4px;
+font-size: 0.78em;
 }
 .modal-actions {
 flex-direction: column;
