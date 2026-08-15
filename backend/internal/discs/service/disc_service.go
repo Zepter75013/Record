@@ -15,19 +15,23 @@ import (
 
 	"records-manager/backend/internal/discs"
 	"records-manager/backend/internal/discs/repository"
+	"records-manager/backend/internal/tracks"
+	tracksrepo "records-manager/backend/internal/tracks/repository"
 )
 
 type DiscService struct {
 	repo         repository.DiscRepository
 	discogsToken string
 	uploadsDir   string
+	trackRepo    tracksrepo.TrackRepository
 }
 
-func NewDiscService(repo repository.DiscRepository, discogsToken string, uploadsDir string) *DiscService {
+func NewDiscService(repo repository.DiscRepository, discogsToken string, uploadsDir string, trackRepo tracksrepo.TrackRepository) *DiscService {
 	return &DiscService{
 		repo:         repo,
 		discogsToken: discogsToken,
 		uploadsDir:   uploadsDir,
+		trackRepo:    trackRepo,
 	}
 }
 
@@ -63,6 +67,12 @@ type DiscogsPrice struct {
 	HighestPrice float64 `json:"highest_price,omitempty"`
 }
 
+type TrackItem struct {
+	Position string `json:"position"`
+	Title    string `json:"title"`
+	Duration string `json:"duration"`
+}
+
 type CoverPreview struct {
 	CoverURL string          `json:"cover_url"`
 	Title    string          `json:"title"`
@@ -75,6 +85,7 @@ type CoverPreview struct {
 	Found    bool            `json:"found"`
 	Results  []DiscogsResult `json:"results,omitempty"`
 	Prices   *DiscogsPrice   `json:"prices,omitempty"`
+	Tracks   []TrackItem     `json:"tracklist,omitempty"`
 }
 
 // === Méthodes existantes inchangées jusqu’à getDiscogsPrices ===
@@ -329,6 +340,121 @@ func (s *DiscService) searchDiscogs(title, artist string) (string, error) {
 		return searchResp.Results[0].CoverURL, nil
 	}
 	return "", nil
+}
+
+// findReleaseIDByTitleArtist cherche sur Discogs une release correspondant au
+// titre/artiste et renvoie l'ID du premier résultat — même requête que
+// searchDiscogs, mais on a besoin de l'ID (pour la tracklist) plutôt que de
+// l'URL de pochette.
+func (s *DiscService) findReleaseIDByTitleArtist(title, artist string) (int64, error) {
+	if s.discogsToken == "" {
+		return 0, fmt.Errorf("token Discogs manquant")
+	}
+	title = strings.TrimSpace(title)
+	artist = strings.TrimSpace(artist)
+
+	url := fmt.Sprintf("https://api.discogs.com/database/search?type=release&format=Vinyl&token=%s", s.discogsToken)
+	if title != "" {
+		url += fmt.Sprintf("&release_title=%s", strings.ReplaceAll(title, " ", "+"))
+	}
+	if artist != "" {
+		url += fmt.Sprintf("&artist=%s", strings.ReplaceAll(artist, " ", "+"))
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("User-Agent", "RecordsManager/1.0")
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("erreur API Discogs: %d", resp.StatusCode)
+	}
+	var searchResp DiscogsSearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&searchResp); err != nil {
+		return 0, err
+	}
+	if len(searchResp.Results) == 0 {
+		return 0, fmt.Errorf("aucune release Discogs trouvée")
+	}
+	return int64(searchResp.Results[0].ID), nil
+}
+
+// GetTracksForDisc renvoie les pistes déjà stockées pour un disque (peut
+// être vide si jamais récupérées).
+func (s *DiscService) GetTracksForDisc(ctx context.Context, discID int) ([]tracks.Track, error) {
+	return s.trackRepo.FindByVinylID(ctx, discID)
+}
+
+// UpdateTracksForDisc remplace intégralement la tracklist d'un disque —
+// utilisé par l'édition manuelle (ajout/suppression/réordonnancement de
+// pistes) : on efface l'existant puis on réinsère la liste fournie, pour
+// garder track_order cohérent avec l'ordre reçu.
+func (s *DiscService) UpdateTracksForDisc(ctx context.Context, discID int, items []TrackItem) ([]tracks.Track, error) {
+	if err := s.trackRepo.DeleteByVinylID(ctx, discID); err != nil {
+		return nil, err
+	}
+	if len(items) > 0 {
+		trackList := make([]tracks.Track, len(items))
+		for i, t := range items {
+			trackList[i] = tracks.Track{Position: t.Position, Title: t.Title, Duration: t.Duration}
+		}
+		if err := s.trackRepo.CreateBatch(ctx, discID, trackList); err != nil {
+			return nil, err
+		}
+	}
+	return s.trackRepo.FindByVinylID(ctx, discID)
+}
+
+// FetchTracklistForDisc récupère et stocke la tracklist d'un disque à la
+// demande — filet de rattrapage pour les disques ajoutés avant cette
+// fonctionnalité (pas de discogs_release_id connu, donc re-recherche par
+// titre/artiste, avec le même risque de mauvais pressage que la recherche
+// de pochette existante).
+func (s *DiscService) FetchTracklistForDisc(ctx context.Context, discID int) ([]tracks.Track, error) {
+	existing, err := s.trackRepo.FindByVinylID(ctx, discID)
+	if err != nil {
+		return nil, err
+	}
+	if len(existing) > 0 {
+		return existing, nil
+	}
+
+	disc, err := s.repo.FindByID(ctx, discID)
+	if err != nil {
+		return nil, err
+	}
+	if disc == nil {
+		return nil, fmt.Errorf("disque introuvable")
+	}
+
+	releaseID, err := s.findReleaseIDByTitleArtist(disc.Title, disc.ArtistName)
+	if err != nil {
+		return nil, err
+	}
+
+	preview, err := s.getDiscogsReleaseDetails(releaseID)
+	if err != nil {
+		return nil, err
+	}
+	if len(preview.Tracks) == 0 {
+		return nil, fmt.Errorf("aucune piste trouvée sur Discogs")
+	}
+
+	trackList := make([]tracks.Track, len(preview.Tracks))
+	for i, t := range preview.Tracks {
+		trackList[i] = tracks.Track{Position: t.Position, Title: t.Title, Duration: t.Duration}
+	}
+	if err := s.trackRepo.CreateBatch(ctx, discID, trackList); err != nil {
+		return nil, err
+	}
+
+	return s.trackRepo.FindByVinylID(ctx, discID)
 }
 
 func (s *DiscService) searchDiscogsByBarcode(barcode string) (*CoverPreview, error) {
@@ -637,6 +763,11 @@ func (s *DiscService) getDiscogsReleaseDetails(releaseID int64) (*CoverPreview, 
 		Labels  []struct {
 			Name string `json:"name"`
 		} `json:"labels"`
+		Tracklist []struct {
+			Position string `json:"position"`
+			Title    string `json:"title"`
+			Duration string `json:"duration"`
+		} `json:"tracklist"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
 		return nil, err
@@ -659,6 +790,10 @@ func (s *DiscService) getDiscogsReleaseDetails(releaseID int64) (*CoverPreview, 
 	if len(release.Labels) > 0 {
 		label = release.Labels[0].Name
 	}
+	var tracks []TrackItem
+	for _, t := range release.Tracklist {
+		tracks = append(tracks, TrackItem{Position: t.Position, Title: t.Title, Duration: t.Duration})
+	}
 	prices, _ := s.getDiscogsPrices(releaseID)
 	return &CoverPreview{
 		CoverURL: release.CoverURL,
@@ -671,6 +806,7 @@ func (s *DiscService) getDiscogsReleaseDetails(releaseID int64) (*CoverPreview, 
 		Label:    label,
 		Found:    true,
 		Prices:   prices,
+		Tracks:   tracks,
 	}, nil
 }
 
@@ -725,6 +861,11 @@ func (s *DiscService) CreateDisc(
 	deezerURL *string,
 	youtubeURL *string,
 	isrc *string,
+	// Tracklist Discogs, récupérée côté frontend au moment de la sélection
+	// de la release (voir CoverPreview.Tracks) et transmise ici pour être
+	// stockée en une fois avec le disque.
+	discogsReleaseID *int64,
+	trackItems []TrackItem,
 ) (*discs.DiscWithDetails, error) {
 	if barcode != nil && *barcode != "" {
 		exists, existingDisc, err := s.CheckBarcodeExists(ctx, *barcode, nil)
@@ -754,6 +895,8 @@ func (s *DiscService) CreateDisc(
 		DeezerURL:     deezerURL,
 		YoutubeURL:    youtubeURL,
 		ISRC:          isrc,
+
+		DiscogsReleaseID: discogsReleaseID,
 	}
 	if err := s.repo.Create(ctx, disc); err != nil {
 		return nil, err
@@ -923,6 +1066,19 @@ func (s *DiscService) CreateDisc(
 			fmt.Printf("⚠️ Aucune URL de pochette trouvée\n")
 		}
 	}
+
+	if len(trackItems) > 0 {
+		trackList := make([]tracks.Track, len(trackItems))
+		for i, t := range trackItems {
+			trackList[i] = tracks.Track{Position: t.Position, Title: t.Title, Duration: t.Duration}
+		}
+		if err := s.trackRepo.CreateBatch(ctx, created.ID, trackList); err != nil {
+			fmt.Printf("❌ Erreur enregistrement tracklist: %v\n", err)
+		} else {
+			fmt.Printf("✅ Tracklist enregistrée (%d pistes)\n", len(trackList))
+		}
+	}
+
 	return s.repo.FindByID(ctx, created.ID)
 }
 

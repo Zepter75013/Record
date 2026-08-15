@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useStreamingPreferencesStore } from '@/stores/streamingPreferences'
+import { getAuthToken } from '@/utils/authToken'
 
 const props = defineProps({
   disc: {
@@ -23,7 +24,7 @@ async function resolveAppleMusic(query) {
 }
 
 async function resolveDeezer(query) {
-  const token = localStorage.getItem('user_token')
+  const token = getAuthToken()
   const res = await fetch(`${API_BASE_URL}/streaming/deezer-search?q=${query}`, {
     headers: { Authorization: `Bearer ${token}` }
   })

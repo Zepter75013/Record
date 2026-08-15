@@ -4,6 +4,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApi } from '@/composables/useApi'
 import StreamingButtons from '@/components/StreamingButtons.vue'
+import TracklistModal from '@/components/TracklistModal.vue'
 
 const router = useRouter()
 const { apiFetch } = useApi()
@@ -134,6 +135,17 @@ const backToList = () => {
 // Voir les détails d'un disque
 const viewVinylDetails = (vinyl) => {
   router.push(`/dashboard/vinyls`)
+}
+
+const isTracklistModalOpen = ref(false)
+const vinylForTracklist = ref(null)
+const openTracklistModal = (vinyl) => {
+  vinylForTracklist.value = vinyl
+  isTracklistModalOpen.value = true
+}
+const handleTracksUpdated = ({ discId, hasTracks }) => {
+  const vinyl = vinyls.value.find((v) => v.id === discId)
+  if (vinyl) vinyl.has_tracks = hasTracks
 }
 
 // Normaliser l'URL de la pochette — même logique que getImageUrl de
@@ -418,6 +430,17 @@ onMounted(() => {
           <div class="vinyl-info">
             <h3 class="vinyl-title">{{ vinyl.title }}</h3>
             <p class="vinyl-year" v-if="vinyl.release_year">{{ vinyl.release_year }}</p>
+            <button
+              type="button"
+              class="tracklist-link"
+              :class="{ 'has-tracks': vinyl.has_tracks }"
+              @click.stop="openTracklistModal(vinyl)"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+                <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+              </svg>
+              Pistes
+            </button>
           </div>
         </div>
       </div>
@@ -439,6 +462,12 @@ onMounted(() => {
       {{ error }}
       <button @click="fetchArtists" class="retry-button">Réessayer</button>
     </div>
+
+    <TracklistModal
+      v-model="isTracklistModalOpen"
+      :disc="vinylForTracklist"
+      @tracks-updated="handleTracksUpdated"
+    />
   </div>
 </template>
 
@@ -923,6 +952,28 @@ onMounted(() => {
   color: var(--text-dim);
   font-size: 0.9em;
   margin: 0;
+}
+
+.tracklist-link {
+  margin-top: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 0.85em;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tracklist-link.has-tracks {
+  color: var(--accent-sand);
+  font-weight: 600;
+}
+
+.tracklist-link:hover {
+  color: var(--accent);
 }
 
 /* ============================================

@@ -1,7 +1,9 @@
+import { getAuthToken } from '@/utils/authToken'
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 function authHeaders(extra = {}) {
-  const token = localStorage.getItem('user_token')
+  const token = getAuthToken()
   return {
     ...extra,
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -57,10 +59,11 @@ export async function fetchLatestReportMetadata() {
   return parseJson(response)
 }
 
-export async function uploadGeneratedReport(pdfBlob, criteria) {
+export async function uploadGeneratedReport(blob, criteria, format) {
   const formData = new FormData()
-  formData.append('file', pdfBlob, 'rapport-disques-manager.pdf')
+  formData.append('file', blob, `rapport-disques-manager.${format}`)
   formData.append('criteria', criteria)
+  formData.append('format', format)
 
   const response = await fetch(`${API_BASE_URL}/reports`, {
     method: 'POST',
@@ -76,8 +79,12 @@ export async function uploadGeneratedReport(pdfBlob, criteria) {
   return parseJson(response)
 }
 
-export async function viewLatestReportPdf() {
-  const response = await fetch(`${API_BASE_URL}/reports/latest/pdf`, {
+// Le PDF s'ouvre dans un nouvel onglet (le navigateur sait l'afficher tel
+// quel) ; les autres formats (XLSX/DOCX/CSV) n'ont pas de rendu inline
+// possible dans un onglet — on déclenche donc un téléchargement classique
+// avec le bon nom de fichier/extension.
+export async function viewLatestReportFile(format) {
+  const response = await fetch(`${API_BASE_URL}/reports/latest/file`, {
     method: 'GET',
     headers: authHeaders(),
   })
@@ -89,7 +96,18 @@ export async function viewLatestReportPdf() {
 
   const blob = await response.blob()
   const url = URL.createObjectURL(blob)
-  const win = window.open(url, '_blank', 'noopener')
-  if (!win) window.location.href = url
+
+  if (format === 'pdf') {
+    const win = window.open(url, '_blank', 'noopener')
+    if (!win) window.location.href = url
+  } else {
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `rapport-disques-manager.${format || 'pdf'}`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+  }
+
   setTimeout(() => URL.revokeObjectURL(url), 60000)
 }

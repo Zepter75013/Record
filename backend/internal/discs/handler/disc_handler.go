@@ -44,6 +44,9 @@ type CreateDiscRequest struct {
 	DeezerURL     *string `json:"deezer_url,omitempty"`
 	YoutubeURL    *string `json:"youtube_url,omitempty"`
 	ISRC          *string `json:"isrc,omitempty"`
+	// NOUVEAU: Tracklist Discogs capturée à la sélection de la release
+	DiscogsReleaseID *int64                   `json:"discogs_release_id,omitempty"`
+	Tracks           []discsService.TrackItem `json:"tracks,omitempty"`
 }
 
 type UpdateDiscRequest struct {
@@ -77,17 +80,18 @@ type PreviewCoverRequest struct {
 }
 
 type PreviewCoverResponse struct {
-	CoverURL string                `json:"cover_url"`
-	Title    string                `json:"title"`
-	Artist   string                `json:"artist"`
-	Year     string                `json:"year"`
-	Genres   []string              `json:"genres"`
-	Formats  []string              `json:"formats"`
-	Country  string                `json:"country"`
-	Label    string                `json:"label"`
-	Found    bool                  `json:"found"`
-	Results  []PreviewResult       `json:"results,omitempty"`
-	Prices   *DiscogsPriceResponse `json:"prices,omitempty"`
+	CoverURL  string                   `json:"cover_url"`
+	Title     string                   `json:"title"`
+	Artist    string                   `json:"artist"`
+	Year      string                   `json:"year"`
+	Genres    []string                 `json:"genres"`
+	Formats   []string                 `json:"formats"`
+	Country   string                   `json:"country"`
+	Label     string                   `json:"label"`
+	Found     bool                     `json:"found"`
+	Results   []PreviewResult          `json:"results,omitempty"`
+	Prices    *DiscogsPriceResponse    `json:"prices,omitempty"`
+	Tracklist []discsService.TrackItem `json:"tracklist,omitempty"`
 }
 
 type PreviewResult struct {
@@ -238,6 +242,9 @@ func (h *DiscHandler) CreateDisc(w http.ResponseWriter, r *http.Request) {
 		req.DeezerURL,
 		req.YoutubeURL,
 		req.ISRC,
+		// NOUVEAU: Tracklist Discogs
+		req.DiscogsReleaseID,
+		req.Tracks,
 	)
 	if err != nil {
 		if err.Error() == "un disque avec ce code-barres existe déjà" {
@@ -397,6 +404,59 @@ func (h *DiscHandler) DownloadCover(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "Pochette téléchargée avec succès"})
 }
 
+func (h *DiscHandler) GetTracks(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "ID invalide", http.StatusBadRequest)
+		return
+	}
+	list, err := h.service.GetTracksForDisc(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(list)
+}
+
+func (h *DiscHandler) FetchTracks(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "ID invalide", http.StatusBadRequest)
+		return
+	}
+	list, err := h.service.FetchTracklistForDisc(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(list)
+}
+
+func (h *DiscHandler) UpdateTracks(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "ID invalide", http.StatusBadRequest)
+		return
+	}
+	var items []discsService.TrackItem
+	if err := json.NewDecoder(r.Body).Decode(&items); err != nil {
+		http.Error(w, "Données invalides", http.StatusBadRequest)
+		return
+	}
+	list, err := h.service.UpdateTracksForDisc(r.Context(), id, items)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(list)
+}
+
 func (h *DiscHandler) PreviewCover(w http.ResponseWriter, r *http.Request) {
 	var req PreviewCoverRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -479,15 +539,16 @@ func (h *DiscHandler) SelectDiscogsResult(w http.ResponseWriter, r *http.Request
 	}
 
 	response := PreviewCoverResponse{
-		CoverURL: preview.CoverURL,
-		Title:    preview.Title,
-		Artist:   preview.Artist,
-		Year:     preview.Year,
-		Genres:   preview.Genres,
-		Formats:  preview.Formats,
-		Country:  preview.Country,
-		Label:    preview.Label,
-		Found:    preview.Found,
+		CoverURL:  preview.CoverURL,
+		Title:     preview.Title,
+		Artist:    preview.Artist,
+		Year:      preview.Year,
+		Genres:    preview.Genres,
+		Formats:   preview.Formats,
+		Country:   preview.Country,
+		Label:     preview.Label,
+		Found:     preview.Found,
+		Tracklist: preview.Tracks,
 	}
 
 	if preview.Prices != nil {

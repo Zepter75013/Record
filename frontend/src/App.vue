@@ -62,7 +62,13 @@ useThemeStore()
      (y compris celles pas encore restylées individuellement) — adaptatives
      au thème via --tint-rgb/--line plutôt que des couleurs violettes fixes. */
   --table-header-color: var(--accent);
-  --odd-row-color: rgba(var(--tint-rgb), 0.035);
+  /* Opaque (pas rgba) : les colonnes figées des tableaux (DiscsView) ont
+     besoin d'un fond réellement opaque pour occulter le contenu qui défile
+     dessous, et doivent utiliser EXACTEMENT cette valeur (pas une
+     approximation) pour ne pas trancher avec le reste de la ligne — donc
+     cette teinte est déjà l'équivalent opaque de rgba(tint, 0.035) posé sur
+     --panel-bg, precalculé pour chaque thème plutôt que composé à la volée. */
+  --odd-row-color: rgb(59, 80, 127);
   --even-row-color: var(--bg-elevated);
   --border-color: var(--line);
 }
@@ -95,6 +101,10 @@ useThemeStore()
   --positive-text: #15803d;
 
   --shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+
+  /* Équivalent opaque de rgba(tint, 0.035) sur --panel-bg pour ce thème,
+     voir le commentaire sur --odd-row-color dans le :root sombre. */
+  --odd-row-color: rgb(247, 247, 248);
 }
 
 *,

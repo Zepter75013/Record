@@ -1,6 +1,7 @@
 <script setup>
 // records-manager/frontend/src/views/DiscsView.vue
 import DiscsModal from '@/components/DiscsModal/DiscsModal.vue';
+import TracklistModal from '@/components/TracklistModal.vue';
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { useApi } from '@/composables/useApi';
 import { formatCurrency } from '@/utils/format';
@@ -11,6 +12,16 @@ const apiError = ref(null);
 const isConfirmModalOpen = ref(false);
 const discToDelete = ref(null);
 const selectedRowId = ref(null);
+const isTracklistModalOpen = ref(false);
+const discForTracklist = ref(null);
+function openTracklistModal(disc) {
+  discForTracklist.value = disc;
+  isTracklistModalOpen.value = true;
+}
+function handleTracksUpdated({ discId, hasTracks }) {
+  const disc = discs.value.find((d) => d.id === discId);
+  if (disc) disc.has_tracks = hasTracks;
+}
 const API_URL = '/discs';
 // ✅ ÉTATS FILTRES & RECHERCHE
 const searchQuery = ref('');
@@ -77,7 +88,7 @@ const defaultColumns = [
 { key: 'label', label: 'LABEL', labelShort: 'LABEL', labelLong: 'LABEL', visible: true, width: 170, minWidth: 140, resizable: true, sticky: false },
 { key: 'barcode', label: 'BARCODE', labelShort: 'BARCODE', labelLong: 'CODE-BARRES', visible: true, width: 150, minWidth: 140, resizable: true, sticky: false },
 { key: 'price', label: 'PRIX', labelShort: 'PRIX', labelLong: 'PRIX', visible: true, width: 100, minWidth: 90, resizable: true, sticky: false },
-{ key: 'actions', label: 'ACTIONS', labelShort: 'ACTIONS', labelLong: 'ACTIONS', visible: true, width: 150, minWidth: 150, resizable: false, sticky: true, stickyRight: 0 }
+{ key: 'actions', label: 'ACTIONS', labelShort: 'ACTIONS', labelLong: 'ACTIONS', visible: true, width: 190, minWidth: 190, resizable: false, sticky: true, stickyRight: 0 }
 ];
 // Charger la configuration depuis localStorage
 const loadColumnsConfig = () => {
@@ -87,7 +98,13 @@ if (saved) {
 const parsed = JSON.parse(saved);
 return defaultColumns.map(col => {
 const savedCol = parsed.find(c => c.key === col.key);
-return savedCol ? { ...col, ...savedCol } : col;
+if (!savedCol) return col;
+// Largeur non pilotable par l'utilisateur (resizable:false) : toujours
+// reprendre celle du défaut courant, sinon une largeur figée dans un
+// ancien localStorage (ex: 150px pour actions) resterait bloquée même
+// après une hausse du défaut nécessaire pour loger les icônes.
+if (!col.resizable) return { ...col, ...savedCol, width: col.width, minWidth: col.minWidth };
+return { ...col, ...savedCol };
 });
 }
 } catch (err) {
@@ -245,7 +262,16 @@ const updateStickyPositions = () => {
   const actionsCol = columns.value.find(c => c.key === 'actions');
   if (actionsCol?.sticky && actionsCol.visible) {
     actionsCol.stickyRight = 0;
+    rightOffset = actionsCol.width;
     logger.debug('updateStickyPositions: Actions sticky à droite');
+  }
+
+  // 🆕 scroll-padding = largeur totale des colonnes figées, pour que le
+  // scroll-snap colonne par colonne n'aligne jamais une colonne pile sous
+  // une colonne figée (qui la cacherait).
+  if (tableContainer.value) {
+    tableContainer.value.style.scrollPaddingLeft = `${leftOffset}px`;
+    tableContainer.value.style.scrollPaddingRight = `${rightOffset}px`;
   }
 
   nextTick(() => {
@@ -269,7 +295,13 @@ const rightElements = [];
 // au lieu de hex fixes, pour suivre le thème actif clair/sombre)
 const rootStyles = getComputedStyle(document.documentElement);
 const stickyBaseBg = rootStyles.getPropertyValue('--bg-elevated').trim() || 'var(--bg-elevated)';
-const stickyTintRgb = rootStyles.getPropertyValue('--tint-rgb').trim() || '255, 255, 255';
+const stickyHeaderBg = rootStyles.getPropertyValue('--table-header-color').trim() || 'var(--table-header-color)';
+
+// 🆕 --odd-row-color est désormais une valeur opaque (voir App.vue) : les
+// cellules figées peuvent donc réutiliser exactement la même variable que
+// les cellules normales, garantissant une correspondance parfaite au lieu
+// d'une approximation recalculée ici.
+const stickyOddRowBg = rootStyles.getPropertyValue('--odd-row-color').trim() || 'var(--odd-row-color)';
 
 columns.value.forEach(col => {
 if (!col.sticky || !col.visible) return;
@@ -283,12 +315,22 @@ cell.style.position = 'relative';
 cell.style.zIndex = col.key === 'cover' || col.key === 'actions' ? '10' : '5';
 
 // Background selon le type (opaque, thème-aware)
+// ⚠️ setProperty(..., 'important') est nécessaire : les règles globales
+// ".data-table tbody tr.odd-row/even-row td { background-color: ... !important }"
+// (App.vue + base.css) ciblent TOUTES les cellules avec !important et
+// gagnaient sinon contre ce fond inline, laissant transparaître le
+// contenu qui défile sous les colonnes figées.
 if (cell.tagName === 'TH') {
-cell.style.background = stickyBaseBg;
+// L'en-tête doit toujours être --table-header-color, comme les colonnes
+// non figées (sinon JACKET/ACTIONS ressortaient dans une teinte différente
+// du reste de la barre d'en-tête).
+cell.style.setProperty('background', stickyHeaderBg, 'important');
 } else {
 const row = cell.closest('tr');
-const tintAlpha = row?.classList.contains('even-row') ? 0.04 : 0.02;
-cell.style.background = `linear-gradient(rgba(${stickyTintRgb}, ${tintAlpha}), rgba(${stickyTintRgb}, ${tintAlpha})), ${stickyBaseBg}`;
+// Même couleur EXACTE que la ligne : bg-elevated tel quel pour les lignes
+// paires (déjà opaque, comme --even-row-color), version opaque équivalente
+// de rgba(tint, 0.035) pour les lignes impaires (--odd-row-color).
+cell.style.setProperty('background', row?.classList.contains('even-row') ? stickyBaseBg : stickyOddRowBg, 'important');
 }
 
 if (col.stickyLeft !== undefined) {
@@ -983,6 +1025,8 @@ const handleSaveWithValidation = async (formData) => {
     
     if (!isUpdate) {
       body.cover_image = formData.cover_image || null;
+      body.tracks = formData.tracks || [];
+      body.discogs_release_id = formData.discogs_release_id || null;
     } else {
       if (formData.cover_image === '') {
         body.cover_image = '';
@@ -2145,6 +2189,16 @@ class="icon-action-btn info-button"
 >
 <span class="icon" aria-hidden="true">ℹ️</span>
 </button>
+<button
+@click.stop="openTracklistModal(disc)"
+class="icon-action-btn tracklist-button"
+:class="{ 'has-tracks': disc.has_tracks }"
+:aria-label="`Afficher les pistes de ${disc.title}`"
+>
+<svg class="icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+<path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+</svg>
+</button>
 </div>
 </td>
 </tr>
@@ -2204,6 +2258,16 @@ class="action-button-mobile delete-button"
 >
 <span class="icon" aria-hidden="true">🗑️</span>
 <span>Supprimer</span>
+</button>
+<button
+@click.stop="openTracklistModal(disc)"
+class="action-button-mobile tracklist-button"
+:class="{ 'has-tracks': disc.has_tracks }"
+>
+<svg class="icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+<path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+</svg>
+<span>Pistes</span>
 </button>
 </div>
 </div>
@@ -2344,6 +2408,12 @@ Aller
 @save="handleSaveWithValidation"
 @create-artist="handleCreateArtist"
 @edit-existing-disc="handleEditExistingDisc"
+/>
+<!-- ✅ MODALE PISTES -->
+<TracklistModal
+v-model="isTracklistModalOpen"
+:disc="discForTracklist"
+@tracks-updated="handleTracksUpdated"
 />
 <!-- ✅ MODALE CONFIRMATION SUPPRESSION (Design unifié) -->
 <Teleport to="body">
@@ -3021,6 +3091,11 @@ scroll-behavior: auto; /* Pas de smooth scroll pour éviter les delays */
 	position: relative;
 	display: block;
 	box-sizing: border-box;
+	/* Scroll horizontal colonne par colonne quand des colonnes sont figées —
+	   scroll-padding-left/right est mis à jour dynamiquement
+	   (updateStickyPositions) selon la largeur figée réelle, pour que le
+	   snap n'aligne jamais une colonne pile sous une colonne figée. */
+	scroll-snap-type: x mandatory;
 }
 .data-table {
 width: 100%;
@@ -3053,6 +3128,12 @@ text-align: center;
 font-size: var(--table-font-size);
 height: 50px;
 white-space: nowrap;
+}
+/* Points d'ancrage du scroll-snap horizontal : uniquement les colonnes non
+   figées (les figées sont déjà toujours visibles, pas besoin d'y accrocher
+   le scroll). */
+.data-table thead th:not(.sticky-column) {
+scroll-snap-align: start;
 }
 .data-table thead th::after {
 content: '';
@@ -3195,6 +3276,9 @@ color: var(--action-edit-color);
 }
 .delete-button .icon {
 color: var(--negative-text);
+}
+.tracklist-button.has-tracks .icon {
+color: var(--color-warning);
 }
 /* ✅ TRI */
 .sortable {
@@ -3497,6 +3581,9 @@ color: white;
 }
 .action-button-mobile.delete-button:active {
 filter: brightness(0.9);
+}
+.action-button-mobile.tracklist-button.has-tracks {
+color: var(--color-warning);
 }
 .action-button-mobile:disabled {
 opacity: 0.5;
@@ -3805,14 +3892,24 @@ font-size: 0.85em;
 font-size: 0.85em;
 }
 }
-/* 🆕 RESPONSIVE POUR LES NOUVELLES COLONNES */
-.quantity-column {
+/* 🆕 RESPONSIVE POUR LES NOUVELLES COLONNES
+   ⚠️ .data-table td est display:flex (voir plus haut) : text-align n'a
+   aucun effet sur son contenu, il faut justify-content. Le sélecteur est
+   aussi qualifié par .data-table td pour égaler sa spécificité, sinon
+   .data-table td (classe + élément) l'emportait sur .quantity-column seul
+   (classe) malgré l'ordre des règles. */
+.data-table td.quantity-column {
+justify-content: center;
 text-align: center;
 font-weight: 600;
 color: var(--text);
 }
+.data-table td.year-column {
+justify-content: center;
+text-align: center;
+color: var(--text);
+}
 .genre-column,
-.year-column,
 .country-column {
 text-align: left;
 color: var(--text);
@@ -3915,7 +4012,7 @@ animation: pinPulse 2s ease-in-out infinite;
 
 .data-table th.actions-column,
 .data-table td.actions-column {
-  min-width: 140px !important;
+  min-width: 190px !important;
 }
 </style>
 

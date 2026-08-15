@@ -14,6 +14,13 @@ func intPtrToNullInt64(ptr *int) sql.NullInt64 {
 	return sql.NullInt64{Int64: int64(*ptr), Valid: true}
 }
 
+func int64PtrToNullInt64(ptr *int64) sql.NullInt64 {
+	if ptr == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: *ptr, Valid: true}
+}
+
 func stringPtrToNullString(ptr *string) sql.NullString {
 	if ptr == nil {
 		return sql.NullString{}
@@ -40,9 +47,9 @@ func (r *MySQLDiscRepository) Create(ctx context.Context, disc *discs.Disc) erro
 	query := `
 		INSERT INTO vinyls (
 			title, artist_id, genre_id, format_id, country_id, label_id, release_year, barcode, cover_url, notes, price, quantity,
-			apple_music_url, spotify_url, deezer_url, youtube_url, isrc,
+			apple_music_url, spotify_url, deezer_url, youtube_url, isrc, discogs_release_id,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
 
 	result, err := r.db.ExecContext(ctx, query,
 		disc.Title,
@@ -63,6 +70,7 @@ func (r *MySQLDiscRepository) Create(ctx context.Context, disc *discs.Disc) erro
 		stringPtrToNullString(disc.DeezerURL),
 		stringPtrToNullString(disc.YoutubeURL),
 		stringPtrToNullString(disc.ISRC),
+		int64PtrToNullInt64(disc.DiscogsReleaseID),
 	)
 
 	if err != nil {
@@ -105,6 +113,7 @@ func (r *MySQLDiscRepository) FindAll(ctx context.Context) ([]discs.DiscWithDeta
 			v.deezer_url,
 			v.youtube_url,
 			v.isrc,
+			EXISTS(SELECT 1 FROM tracks t WHERE t.vinyl_id = v.id) as has_tracks,
 			v.created_at,
 			v.updated_at
 		FROM vinyls v
@@ -149,6 +158,7 @@ func (r *MySQLDiscRepository) FindAll(ctx context.Context) ([]discs.DiscWithDeta
 			&d.DeezerURL,
 			&d.YoutubeURL,
 			&d.ISRC,
+			&d.HasTracks,
 			&d.CreatedAt,
 			&d.UpdatedAt,
 		)
@@ -187,6 +197,7 @@ func (r *MySQLDiscRepository) FindByID(ctx context.Context, id int) (*discs.Disc
 			v.deezer_url,
 			v.youtube_url,
 			v.isrc,
+			EXISTS(SELECT 1 FROM tracks t WHERE t.vinyl_id = v.id) as has_tracks,
 			v.created_at,
 			v.updated_at
 		FROM vinyls v
@@ -225,6 +236,7 @@ func (r *MySQLDiscRepository) FindByID(ctx context.Context, id int) (*discs.Disc
 		&d.DeezerURL,
 		&d.YoutubeURL,
 		&d.ISRC,
+		&d.HasTracks,
 		&d.CreatedAt,
 		&d.UpdatedAt,
 	)

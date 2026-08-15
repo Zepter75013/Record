@@ -26,6 +26,8 @@ type Disc struct {
 	YoutubeURL    *string `json:"youtube_url,omitempty"`
 	ISRC          *string `json:"isrc,omitempty"` // Code ISRC pour identification
 
+	DiscogsReleaseID *int64 `json:"discogs_release_id,omitempty"`
+
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	UpdatedAt time.Time `json:"updated_at,omitempty"`
 }
@@ -56,6 +58,9 @@ type DiscWithDetails struct {
 	DeezerURL     *string `json:"deezer_url,omitempty"`
 	YoutubeURL    *string `json:"youtube_url,omitempty"`
 	ISRC          *string `json:"isrc,omitempty"` // Code ISRC pour identification
+
+	DiscogsReleaseID *int64 `json:"discogs_release_id,omitempty"`
+	HasTracks        bool   `json:"has_tracks"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

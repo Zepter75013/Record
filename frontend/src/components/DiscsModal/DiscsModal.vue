@@ -21,11 +21,14 @@
           </div>
           <!-- Corps du modal -->
           <div class="modal-body">
-            <!-- Étape 1: Recherche Discogs (uniquement création) -->
-            <div v-if="!discData && showSearchStep" class="search-step">
+            <!-- Étape 1: Recherche Discogs (création, ou re-recherche depuis l'édition) -->
+            <div v-if="showSearchStep" class="search-step">
               <div class="step-header">
                 <div class="step-number active">1</div>
                 <h3 class="step-title">🔍 Recherche automatique</h3>
+                <button v-if="discData" type="button" @click="cancelResearch" class="btn secondary small research-cancel-btn">
+                  ✕ Annuler, garder le disque tel quel
+                </button>
               </div>
               <!-- Recherche par code-barres avancée -->
               <div class="search-method">
@@ -226,7 +229,7 @@
                 </button>
               </div>
             </div>
-            <div v-if="!showSearchStep || discData" class="form-step">
+            <div v-if="!showSearchStep" class="form-step">
               <div class="step-header" v-if="!discData">
                 <div class="step-number" :class="{ 'active': !showSearchStep }">2</div>
                 <h3 class="step-title">📝 Informations du disque</h3>
@@ -252,6 +255,10 @@
                         <div class="cover-actions">
                           <button type="button" @click="openFilePicker" class="cover-action-btn" title="Changer la pochette">
                             📁
+                          </button>
+                          <button type="button" v-if="discData" @click="researchOnDiscogs"
+                            class="cover-action-btn" title="Rechercher un autre pressage sur Discogs">
+                            🔍
                           </button>
                           <button type="button" v-if="currentCoverUrl || coverPreview.url" @click="removeCover"
                             class="cover-action-btn remove" title="Supprimer la pochette">
@@ -566,7 +573,7 @@
     <BarcodeScanner :is-open="isBarcodeScannerOpen" @close="isBarcodeScannerOpen = false"
       @barcode-detected="handleBarcodeScanned" />
     <Teleport to="body">
-      <div v-if="isBarcodeModalOpen" class="modal-overlay" @click.self="closeBarcodeModal">
+      <div v-if="isBarcodeModalOpen" class="modal-overlay barcode-conflict-overlay" @click.self="closeBarcodeModal">
         <div class="modal-card">
           <div class="modal-header">
             <div class="header-title-container">
@@ -619,7 +626,7 @@
       </div>
     </Teleport>
     <Teleport to="body">
-      <div v-if="isUnsavedChangesModalOpen" class="modal-overlay" @click.self="cancelClose">
+      <div v-if="isUnsavedChangesModalOpen" class="modal-overlay unsaved-changes-overlay" @click.self="cancelClose">
         <div class="modal-card">
           <div class="modal-header">
             <div class="header-title-container">
@@ -722,6 +729,11 @@ const isCountryModalOpen = ref(false)
 const isLabelModalOpen = ref(false)
 const isBarcodeScannerOpen = ref(false)
 const isBarcodeModalOpen = ref(false)
+// Quand "Modifier le disque existant" est choisi depuis le popup de doublon,
+// on veut le même choix de pressage Discogs qu'à l'ajout (pas juste basculer
+// silencieusement sur les données déjà en base) — ce flag dit à initForm() de
+// garder l'étape de recherche ouverte au lieu de sauter direct au formulaire.
+const keepSearchStepOnNextEdit = ref(false)
 const isUnsavedChangesModalOpen = ref(false)
 const overlayMouseDownTarget = ref(null)
 
@@ -755,7 +767,8 @@ const coverPreview = ref({
   country: '',
   label: '',
   prices: null,
-  isUploaded: false
+  isUploaded: false,
+  tracklist: []
 })
 const formData = ref({
   id: null,
@@ -892,7 +905,6 @@ const autoFormatPrice = () => {
 const initForm = () => {
   coverCacheBuster.value = Date.now()
   if (props.discData) {
-    showSearchStep.value = false
     const disc = props.discData
     formData.value = {
       id: disc.id,
@@ -915,6 +927,20 @@ const initForm = () => {
     if (disc.cover_url || disc.cover_image) {
       const timestamp = disc.updated_at ? new Date(disc.updated_at).getTime() : coverCacheBuster.value
       currentCoverUrl.value = getImageUrl(disc.cover_url || disc.cover_image, timestamp)
+    }
+
+    // Venant de "Modifier le disque existant" (popup de doublon) : proposer
+    // tout de suite le même choix de pressage Discogs qu'à l'ajout, plutôt
+    // que de basculer silencieusement sur les données déjà en base.
+    if (keepSearchStepOnNextEdit.value) {
+      keepSearchStepOnNextEdit.value = false
+      showSearchStep.value = true
+      if (searchResults.value.length === 0 && formData.value.barcode) {
+        searchBarcode.value = formData.value.barcode
+        handleBarcodeSearch()
+      }
+    } else {
+      showSearchStep.value = false
     }
   } else {
     showSearchStep.value = true
@@ -1010,20 +1036,13 @@ const handleBarcodeSearch = async () => {
   try {
     const result = await discogsApi.searchByBarcode(formData.value.barcode)
     if (result?.found) {
-      coverPreview.value = {
-        url: result.cover_url || '',
-        loading: false,
-        found: true,
-        title: result.title || '',
-        artist: result.artist || result.artists?.[0]?.name || '',
-        year: result.year || '',
-        genres: result.genres || [],
-        formats: result.formats || [],
-        country: result.country || '',
-        label: result.label || '',
-        prices: result.prices || null,
-        isUploaded: false
-      }
+      // Ne pas pré-remplir coverPreview avec le "meilleur résultat" renvoyé par
+      // le backend (result.title/result.cover_url...) : quand plusieurs pressages
+      // partagent ce code-barres, ça affichait direct "✅ Résultat sélectionné"
+      // + le bouton "Continuer" sur le tout premier, avant même que l'utilisateur
+      // ait vu la grille de choix en dessous — impossible de vraiment choisir.
+      // On ne considère un résultat "sélectionné" que via selectSearchResult
+      // (clic manuel sur "Choisir", ou auto-sélection si un seul candidat).
       searchResults.value = result.results?.length ? result.results : (result.found && result.id ? [result] : [])
       if (searchResults.value.length === 1) {
         selectedResultId.value = searchResults.value[0].id
@@ -1152,56 +1171,71 @@ const loadPricesForResults = async () => {
 
 const selectSearchResult = async (result) => {
   selectedResultId.value = result.id
+  // Garde-fou anti-course : loadOptions() (lancé par initForm à l'ouverture)
+  // peut ne pas encore être résolu si l'utilisateur cherche/choisit très vite
+  // (ou si le réseau est lent) — sans ça, les setIfExists ci-dessous ne
+  // trouvent rien dans des listes encore vides et artiste/genre/format/pays
+  // restent silencieusement non renseignés malgré un match existant en base.
+  if (!artists.value.length && !genres.value.length && !formats.value.length) {
+    await loadOptions()
+  }
+  let detailed = null
   try {
-    const detailed = await discogsApi.getRelease(result.id)
-    if (detailed?.found) {
-      const artistName = detailed.artists?.[0]?.name || detailed.artist || result.artist || result.artists?.[0]?.name || ''
-      const year = detailed.year || result.year || ''
-      coverPreview.value = {
-        url: detailed.cover_url || result.cover_url || '',
-        loading: false,
-        found: true,
-        title: detailed.title || result.title,
-        artist: artistName,
-        year,
-        genres: detailed.genres || result.genres || [],
-        formats: detailed.formats || result.formats || [],
-        country: detailed.country || result.country,
-        label: detailed.label || result.label,
-        prices: detailed.prices || result.prices,
-        isUploaded: false
-      }
-      const resultIndex = searchResults.value.findIndex(r => r.id === result.id)
-      if (resultIndex !== -1) {
-        const hasPrices = detailed.prices && (detailed.prices.lowest_price || detailed.prices.median_price)
-        searchResults.value[resultIndex] = {
-          ...searchResults.value[resultIndex],
-          prices: hasPrices ? detailed.prices : { noPrice: true },
-          pricesLoading: false
-        }
-      }
-      formData.value.title = coverPreview.value.title
-      formData.value.release_year = coverPreview.value.year || ''
-      
-      // ✅ Alimenter le prix avec le prix moyen Discogs
-      const avgPrice = getAveragePrice(coverPreview.value.prices)
-      if (avgPrice && !formData.value.price) {
-        formData.value.price = avgPrice
-      }
-      
-      const setIfExists = (field, list, name) => {
-        const obj = list.value.find(x => x.name.toLowerCase() === name.toLowerCase())
-        if (obj) formData.value[field] = obj.id
-      }
-      if (coverPreview.value.artist) setIfExists('artist_id', artists, coverPreview.value.artist)
-      if (coverPreview.value.label) setIfExists('label_id', labels, coverPreview.value.label)
-      if (coverPreview.value.genres?.[0]) setIfExists('genre_id', genres, coverPreview.value.genres[0])
-      if (coverPreview.value.formats?.[0]) setIfExists('format_id', formats, coverPreview.value.formats[0])
-      if (coverPreview.value.country) setIfExists('country_id', countries, coverPreview.value.country)
-    }
+    detailed = await discogsApi.getRelease(result.id)
   } catch (error) {
     console.error('Erreur récupération détails:', error)
   }
+  // Si le détail Discogs échoue (ex: rate limit après le chargement des prix
+  // de la grille, souvent en rafale de recherches), "Choisir" ne doit pas
+  // rester sans effet visible — on se rabat sur les données déjà présentes
+  // dans la carte du résultat (result.title est au format "Artiste - Titre").
+  const source = detailed?.found ? detailed : null
+  const titleParts = !source && result.title?.includes(' - ') ? result.title.split(' - ') : null
+  const artistName = source?.artists?.[0]?.name || source?.artist || titleParts?.[0] || result.artist || result.artists?.[0]?.name || ''
+  const title = source?.title || titleParts?.[1] || result.title || ''
+  const year = source?.year || result.year || ''
+  coverPreview.value = {
+    url: source?.cover_url || result.cover_url || '',
+    loading: false,
+    found: true,
+    title,
+    artist: artistName,
+    year,
+    genres: source?.genres || result.genres || [],
+    formats: source?.formats || result.formats || [],
+    country: source?.country || result.country || '',
+    label: source?.label || result.label || '',
+    prices: source?.prices || result.prices || null,
+    isUploaded: false,
+    tracklist: source?.tracklist || []
+  }
+  const resultIndex = searchResults.value.findIndex(r => r.id === result.id)
+  if (resultIndex !== -1) {
+    const hasPrices = coverPreview.value.prices && (coverPreview.value.prices.lowest_price || coverPreview.value.prices.median_price)
+    searchResults.value[resultIndex] = {
+      ...searchResults.value[resultIndex],
+      prices: hasPrices ? coverPreview.value.prices : { noPrice: true },
+      pricesLoading: false
+    }
+  }
+  formData.value.title = coverPreview.value.title
+  formData.value.release_year = coverPreview.value.year || ''
+
+  // ✅ Alimenter le prix avec le prix moyen Discogs
+  const avgPrice = getAveragePrice(coverPreview.value.prices)
+  if (avgPrice && !formData.value.price) {
+    formData.value.price = avgPrice
+  }
+
+  const setIfExists = (field, list, name) => {
+    const obj = list.value.find(x => x.name.toLowerCase() === name.toLowerCase())
+    if (obj) formData.value[field] = obj.id
+  }
+  if (coverPreview.value.artist) setIfExists('artist_id', artists, coverPreview.value.artist)
+  if (coverPreview.value.label) setIfExists('label_id', labels, coverPreview.value.label)
+  if (coverPreview.value.genres?.[0]) setIfExists('genre_id', genres, coverPreview.value.genres[0])
+  if (coverPreview.value.formats?.[0]) setIfExists('format_id', formats, coverPreview.value.formats[0])
+  if (coverPreview.value.country) setIfExists('country_id', countries, coverPreview.value.country)
   nextTick(() => {
     if (continueButton.value) continueButton.value.focus()
   })
@@ -1212,7 +1246,12 @@ const checkBarcodeExists = async () => {
   if (!bc || bc.length < 8 || isEditing.value) return
   try {
     const existing = await discogsApi.checkBarcodeExists(bc)
-    if (existing) {
+    // isEditing peut être devenu vrai pendant l'attente de la requête (ex: le
+    // blur qui a déclenché ce contrôle a eu lieu au mousedown d'un bouton qui a
+    // basculé le formulaire en mode édition avant que la réponse n'arrive) —
+    // sans ce re-contrôle, la modale de doublon réapparaît juste après l'avoir
+    // fermée via "Modifier le disque existant".
+    if (existing && !isEditing.value) {
       existingDisc.value = existing
       isBarcodeModalOpen.value = true
     }
@@ -1381,6 +1420,7 @@ const closeBarcodeModal = () => isBarcodeModalOpen.value = false
 const editExistingDisc = () => {
   if (existingDisc.value?.id) {
     closeBarcodeModal()
+    keepSearchStepOnNextEdit.value = true
     emit('edit-existing-disc', existingDisc.value.id)
   }
 }
@@ -1391,6 +1431,24 @@ const resetAndRetry = () => {
   if (barcodeInput.value) barcodeInput.value.focus()
 }
 const skipSearch = () => showSearchStep.value = false
+// Permet, en édition, de relancer une recherche Discogs pour choisir un autre
+// pressage (pochette/année/format...) au lieu de garder tel quel ce qui a été
+// capturé à la création du disque — sans perdre formData.id (donc handleSubmit
+// enverra bien un PUT de mise à jour, pas un POST de création).
+const researchOnDiscogs = () => {
+  searchResults.value = []
+  selectedResultId.value = null
+  searchAttempted.value = false
+  searchError.value = ''
+  coverPreview.value = {
+    url: null, loading: false, found: false, title: '', artist: '', year: '',
+    genres: [], formats: [], country: '', label: '', prices: null, isUploaded: false, tracklist: []
+  }
+  searchBarcode.value = formData.value.barcode || ''
+  showSearchStep.value = true
+  nextTick(() => barcodeInput.value?.focus())
+}
+const cancelResearch = () => { showSearchStep.value = false }
 const proceedToForm = () => {
   if (coverPreview.value.found) {
     if (!formData.value.title && coverPreview.value.title) {
@@ -1479,6 +1537,11 @@ const handleSubmit = async () => {
     
     data.isrc = data.isrc || null
 
+    if (!isEditMode) {
+      data.tracks = coverPreview.value.tracklist || []
+      data.discogs_release_id = selectedResultId.value || null
+    }
+
     emit('save', data)
   } catch (error) { 
     console.error('❌ Erreur handleSubmit:', error) 
@@ -1533,6 +1596,7 @@ const handleImageError = (e) => {
 const getArtistName = (id) => artists.value.find(a => a.id === id)?.name || ''
 
 watch(() => props.isOpen, (open) => { if (open) initForm(); else stopClipboardWatch() })
+watch(() => props.discData, () => { if (props.isOpen) initForm() })
 onMounted(() => document.addEventListener('keydown', handleKeyInput))
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', handleKeyInput)
@@ -1598,6 +1662,22 @@ const handleKeyInput = (e) => {
   padding: 20px;
   overflow-y: auto;
 }
+
+/* ⚠️ La modale "code-barres déjà utilisé" est Teleportée à côté (et pas à
+   l'intérieur) de .discs-modal-overlay — sans ce z-index dédié, elle
+   héritait du .modal-overlay partagé (z-index: 50, App.vue), bien en
+   dessous des 9999 de la modale d'ajout, donc rendue invisible derrière
+   elle (message jamais vu, appli qui semblait bloquée). */
+.barcode-conflict-overlay {
+  z-index: 10000;
+}
+/* Même souci : la modale "Modifications non enregistrées" héritait aussi du
+   .modal-overlay partagé (z-index: 50) — invisible derrière la modale
+   d'ajout/édition (9999). Le clic sur "Annuler"/"X" avait l'air de ne rien
+   faire alors que la confirmation s'affichait juste hors-vue. */
+.unsaved-changes-overlay {
+  z-index: 10000;
+}
 .discs-modal {
   background: var(--modal-bg);
   border-radius: 20px;
@@ -1652,6 +1732,7 @@ const handleKeyInput = (e) => {
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 .step-title { margin: 0; font-size: 1.4em; color: var(--text); font-weight: 600; }
+.research-cancel-btn { margin-left: auto; white-space: nowrap; }
 .search-method {
   margin-bottom: 24px;
   padding: 24px;

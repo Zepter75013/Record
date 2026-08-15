@@ -1,7 +1,9 @@
+import { getAuthToken } from '@/utils/authToken'
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 function authHeaders(extra = {}) {
-  const token = localStorage.getItem('user_token')
+  const token = getAuthToken()
   return {
     ...extra,
     ...(token ? { Authorization: `Bearer ${token}` } : {}),

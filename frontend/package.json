@@ -1,6 +1,6 @@
 {
   "name": "frontend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "engines": {
@@ -17,6 +17,8 @@
     "@zxing/library": "^0.21.3",
     "axios": "^1.13.2",
     "chart.js": "^4.5.1",
+    "docx": "^9.7.1",
+    "exceljs": "^4.4.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "pinia": "^3.0.4",

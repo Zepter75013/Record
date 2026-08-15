@@ -46,6 +46,7 @@ import (
 	statshandler "records-manager/backend/internal/stats/handler"
 	statsrepo "records-manager/backend/internal/stats/repository"
 	statsservice "records-manager/backend/internal/stats/service"
+	tracksrepo "records-manager/backend/internal/tracks/repository"
 	userhandler "records-manager/backend/internal/users/handler"
 	userrepo "records-manager/backend/internal/users/repository"
 	userservice "records-manager/backend/internal/users/service"
@@ -308,6 +309,7 @@ func main() {
 	labelRepository := labelrepo.NewMySQLLabelRepository(db)
 	statsRepository := statsrepo.NewMySQLStatsRepository(db)
 	discRepository := discrepo.NewMySQLDiscRepository(db)
+	trackRepository := tracksrepo.NewMySQLTrackRepository(db)
 
 	// 7. Initialisation des services
 	authService := authservice.NewAuthService(userRepository)
@@ -320,7 +322,7 @@ func main() {
 	countryService := countryservice.NewCountryService(countryRepository)
 	labelService := labelservice.NewLabelService(labelRepository)
 	statsService := statsservice.NewStatsService(statsRepository)
-	discService := discservice.NewDiscService(discRepository, discogsToken, uploadsDir)
+	discService := discservice.NewDiscService(discRepository, discogsToken, uploadsDir, trackRepository)
 
 	backupService, err := backup.NewService(dbConfig, "./backups")
 	if err != nil {
@@ -394,10 +396,10 @@ func main() {
 	r.HandleFunc("/api/backups/{name}/restore", backupHandler.Restore).Methods("POST")
 	r.HandleFunc("/api/backups/{name}", backupHandler.Delete).Methods("DELETE")
 
-	// Rapports (export PDF de la collection, un seul "dernier rapport" conservé)
+	// Rapports (export PDF/XLSX/DOCX/CSV de la collection, un seul "dernier rapport" conservé)
 	r.HandleFunc("/api/reports", reportHandler.Upload).Methods("POST")
 	r.HandleFunc("/api/reports/latest", reportHandler.GetLatestMetadata).Methods("GET")
-	r.HandleFunc("/api/reports/latest/pdf", reportHandler.DownloadLatestPdf).Methods("GET")
+	r.HandleFunc("/api/reports/latest/file", reportHandler.DownloadLatestFile).Methods("GET")
 
 	// Streaming (résolution d'album Deezer, proxy pour contourner le CORS de l'API Deezer)
 	r.HandleFunc("/api/streaming/deezer-search", handleDeezerSearch).Methods("GET")
@@ -461,6 +463,9 @@ func main() {
 	r.HandleFunc("/api/discs/{id}", discHandler.UpdateDisc).Methods("PUT")
 	r.HandleFunc("/api/discs/{id}", discHandler.DeleteDisc).Methods("DELETE")
 	r.HandleFunc("/api/discs/{id}/download-cover", discHandler.DownloadCover).Methods("POST")
+	r.HandleFunc("/api/discs/{id}/tracks", discHandler.GetTracks).Methods("GET")
+	r.HandleFunc("/api/discs/{id}/tracks", discHandler.UpdateTracks).Methods("PUT")
+	r.HandleFunc("/api/discs/{id}/tracks/fetch", discHandler.FetchTracks).Methods("POST")
 
 	// CORS preflight
 	r.Methods("OPTIONS").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

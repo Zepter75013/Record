@@ -3,6 +3,7 @@ package report
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 )
@@ -17,8 +18,9 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-// Upload reçoit le PDF généré côté client et le stocke comme nouveau
-// "dernier rapport", en remplaçant celui qui existait avant.
+// Upload reçoit le rapport généré côté client (PDF/XLSX/DOCX/CSV) et le
+// stocke comme nouveau "dernier rapport", en remplaçant celui qui existait
+// avant, quel que soit son format.
 func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -40,9 +42,17 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	defer uploaded.Close()
 
 	criteria := r.FormValue("criteria")
+	format := r.FormValue("format")
+	if format == "" {
+		format = "pdf"
+	}
 
-	meta, err := h.service.SaveLatest(criteria, uploaded)
+	meta, err := h.service.SaveLatest(criteria, format, uploaded)
 	if err != nil {
+		if errors.Is(err, ErrUnsupportedFormat) {
+			http.Error(w, "format de rapport non supporté", http.StatusBadRequest)
+			return
+		}
 		http.Error(w, "échec de l'enregistrement du rapport", http.StatusInternalServerError)
 		return
 	}
@@ -74,13 +84,13 @@ func (h *Handler) GetLatestMetadata(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(meta)
 }
 
-func (h *Handler) DownloadLatestPdf(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) DownloadLatestFile(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 
-	file, err := h.service.OpenLatestPdf()
+	file, meta, err := h.service.OpenLatestFile()
 	if err != nil {
 		if errors.Is(err, ErrNoReport) {
 			http.Error(w, "aucun rapport généré pour l'instant", http.StatusNotFound)
@@ -92,8 +102,10 @@ func (h *Handler) DownloadLatestPdf(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	w.Header().Set("Content-Type", "application/pdf")
-	w.Header().Set("Content-Disposition", `inline; filename="rapport-disques-manager.pdf"`)
+	extension := formatInfo[meta.Format].Extension
+
+	w.Header().Set("Content-Type", meta.ContentType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="rapport-disques-manager.%s"`, extension))
 	w.WriteHeader(http.StatusOK)
 	_, _ = io.Copy(w, file)
 }

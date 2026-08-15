@@ -45,13 +45,13 @@ export const discogsApi = {
       const response = await axiosInstance.post('/search-discogs', {
         barcode: barcode.trim()
       });
-      const data = response.data;
-      if (data.id && data.title) return data;
-      if (data.results && Array.isArray(data.results)) {
-        return data.results.length === 1 ? data.results[0] : data;
-      }
-      if (Array.isArray(data)) return data.length === 1 ? data[0] : { results: data };
-      return data;
+      // Le backend renvoie toujours l'objet CoverPreview complet
+      // ({found, title, artist, prices, results: [...]}) — le dépaqueter
+      // vers results[0] quand il n'y a qu'un seul résultat perdait `found`
+      // (absent sur les éléments de `results`), donc handleBarcodeSearch()
+      // prenait la branche "Aucun résultat trouvé" même quand Discogs avait
+      // bien identifié le disque.
+      return response.data;
     } catch (error) {
       console.error('Erreur recherche code-barres:', error);
       let errorMessage = 'Erreur lors de la recherche par code-barres';
