@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"strings"
+
 	"records-manager/backend/internal/tracks"
 )
 
@@ -19,15 +21,18 @@ func (r *MySQLTrackRepository) CreateBatch(ctx context.Context, vinylID int, lis
 		return nil
 	}
 
-	query := `INSERT INTO tracks (vinyl_id, track_order, position, title, duration) VALUES (?, ?, ?, ?, ?)`
-
+	placeholders := make([]string, len(list))
+	args := make([]interface{}, 0, len(list)*5)
 	for i, t := range list {
-		if _, err := r.db.ExecContext(ctx, query, vinylID, i, t.Position, t.Title, t.Duration); err != nil {
-			return err
-		}
+		placeholders[i] = "(?, ?, ?, ?, ?)"
+		args = append(args, vinylID, i, t.Position, t.Title, t.Duration)
 	}
 
-	return nil
+	query := `INSERT INTO tracks (vinyl_id, track_order, position, title, duration) VALUES ` +
+		strings.Join(placeholders, ", ")
+
+	_, err := r.db.ExecContext(ctx, query, args...)
+	return err
 }
 
 func (r *MySQLTrackRepository) FindByVinylID(ctx context.Context, vinylID int) ([]tracks.Track, error) {

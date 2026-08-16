@@ -920,18 +920,87 @@ func (s *DiscService) CreateDisc(
 		fmt.Printf("✅ [CreateDisc] Nom artiste récupéré depuis la base: %s (ID: %d)\n",
 			finalArtistName, created.ArtistID)
 	}
-	if coverImage != nil && *coverImage != "" {
-		fmt.Printf("📁 Pochette fournie par le frontend: %s\n", *coverImage)
-		if strings.HasPrefix(*coverImage, "data:image") {
-			fmt.Printf("🔧 Détection image base64, conversion...\n")
-			parts := strings.SplitN(*coverImage, ",", 2)
-			if len(parts) == 2 {
-				imageData, err := base64.StdEncoding.DecodeString(parts[1])
-				if err == nil {
-					newCoverPath, err := s.saveUploadedCover(imageData, title, finalArtistName, created.ID)
+	// La résolution de pochette (téléchargement depuis Discogs, recherche
+	// Discogs de secours) implique des appels réseau externes lents ; on la
+	// détache en arrière-plan pour que l'enregistrement du disque réponde
+	// immédiatement — la pochette apparaît quelques instants plus tard au
+	// prochain rafraîchissement de la liste. On utilise un contexte détaché
+	// (context.Background) car `ctx` sera annulé dès la fin de la requête
+	// HTTP, bien avant que cette goroutine ait fini.
+	go func() {
+		bgCtx := context.Background()
+		if coverImage != nil && *coverImage != "" {
+			fmt.Printf("📁 Pochette fournie par le frontend: %s\n", *coverImage)
+			if strings.HasPrefix(*coverImage, "data:image") {
+				fmt.Printf("🔧 Détection image base64, conversion...\n")
+				parts := strings.SplitN(*coverImage, ",", 2)
+				if len(parts) == 2 {
+					imageData, err := base64.StdEncoding.DecodeString(parts[1])
 					if err == nil {
+						newCoverPath, err := s.saveUploadedCover(imageData, title, finalArtistName, created.ID)
+						if err == nil {
+							created.CoverURL = &newCoverPath
+							if err := s.repo.Update(bgCtx, &discs.Disc{
+								ID:          &created.ID,
+								Title:       created.Title,
+								ArtistID:    created.ArtistID,
+								GenreID:     created.GenreID,
+								FormatID:    created.FormatID,
+								CountryID:   created.CountryID,
+								LabelID:     created.LabelID,
+								ReleaseYear: created.ReleaseYear,
+								Barcode:     created.Barcode,
+								CoverURL:    &newCoverPath,
+								Notes:       created.Notes,
+								Price:       created.Price,
+								Quantity:    created.Quantity,
+							}); err != nil {
+								fmt.Printf("❌ Erreur mise à jour cover_url: %v\n", err)
+							}
+						}
+					}
+				}
+			} else if strings.HasPrefix(*coverImage, "http") {
+				fmt.Printf("🌐 URL internet détectée, téléchargement...\n")
+				coverPath, err := s.downloadCoverWithName(*coverImage, title, finalArtistName, created.ID)
+				if err == nil && coverPath != "" {
+					created.CoverURL = &coverPath
+					if err := s.repo.Update(bgCtx, &discs.Disc{
+						ID:          &created.ID,
+						Title:       created.Title,
+						ArtistID:    created.ArtistID,
+						GenreID:     created.GenreID,
+						FormatID:    created.FormatID,
+						CountryID:   created.CountryID,
+						LabelID:     created.LabelID,
+						ReleaseYear: created.ReleaseYear,
+						Barcode:     created.Barcode,
+						CoverURL:    &coverPath,
+						Notes:       created.Notes,
+						Price:       created.Price,
+						Quantity:    created.Quantity,
+					}); err != nil {
+						fmt.Printf("❌ Erreur mise à jour cover_url: %v\n", err)
+					}
+				}
+			} else if strings.HasPrefix(*coverImage, "/uploads/covers/") {
+				fmt.Printf("📂 Chemin local détecté: %s\n", *coverImage)
+				filename := filepath.Base(*coverImage)
+				expectedPattern := fmt.Sprintf(".* - .* \\(%d\\)\\.(jpg|png|webp)", created.ID)
+				matched, _ := regexp.MatchString(expectedPattern, filename)
+				if !matched {
+					fmt.Printf("⚠️ Format de fichier incorrect, renommage...\n")
+					oldPath := filepath.Join(s.uploadsDir, strings.TrimPrefix(*coverImage, "/uploads/"))
+					newFilename := fmt.Sprintf("%s - %s (%d)%s",
+						sanitizeFilename(finalArtistName),
+						sanitizeFilename(title),
+						created.ID,
+						filepath.Ext(filename))
+					newPath := filepath.Join(filepath.Dir(oldPath), newFilename)
+					if err := os.Rename(oldPath, newPath); err == nil {
+						newCoverPath := "/uploads/covers/" + newFilename
 						created.CoverURL = &newCoverPath
-						if err := s.repo.Update(ctx, &discs.Disc{
+						if err := s.repo.Update(bgCtx, &discs.Disc{
 							ID:          &created.ID,
 							Title:       created.Title,
 							ArtistID:    created.ArtistID,
@@ -951,47 +1020,38 @@ func (s *DiscService) CreateDisc(
 					}
 				}
 			}
-		} else if strings.HasPrefix(*coverImage, "http") {
-			fmt.Printf("🌐 URL internet détectée, téléchargement...\n")
-			coverPath, err := s.downloadCoverWithName(*coverImage, title, finalArtistName, created.ID)
-			if err == nil && coverPath != "" {
-				created.CoverURL = &coverPath
-				if err := s.repo.Update(ctx, &discs.Disc{
-					ID:          &created.ID,
-					Title:       created.Title,
-					ArtistID:    created.ArtistID,
-					GenreID:     created.GenreID,
-					FormatID:    created.FormatID,
-					CountryID:   created.CountryID,
-					LabelID:     created.LabelID,
-					ReleaseYear: created.ReleaseYear,
-					Barcode:     created.Barcode,
-					CoverURL:    &coverPath,
-					Notes:       created.Notes,
-					Price:       created.Price,
-					Quantity:    created.Quantity,
-				}); err != nil {
-					fmt.Printf("❌ Erreur mise à jour cover_url: %v\n", err)
+		} else {
+			var discogsPreview *CoverPreview
+			if barcode != nil && *barcode != "" {
+				fmt.Printf("🔍 Recherche pochette par code-barres: %s\n", *barcode)
+				preview, err := s.searchDiscogsByBarcode(*barcode)
+				if err == nil && preview.Found {
+					discogsPreview = preview
+					fmt.Printf("✅ Pochette trouvée par code-barres: %s\n", preview.CoverURL)
+				} else {
+					fmt.Printf("⚠️ Pas de pochette trouvée par code-barres\n")
 				}
 			}
-		} else if strings.HasPrefix(*coverImage, "/uploads/covers/") {
-			fmt.Printf("📂 Chemin local détecté: %s\n", *coverImage)
-			filename := filepath.Base(*coverImage)
-			expectedPattern := fmt.Sprintf(".* - .* \\(%d\\)\\.(jpg|png|webp)", created.ID)
-			matched, _ := regexp.MatchString(expectedPattern, filename)
-			if !matched {
-				fmt.Printf("⚠️ Format de fichier incorrect, renommage...\n")
-				oldPath := filepath.Join(s.uploadsDir, strings.TrimPrefix(*coverImage, "/uploads/"))
-				newFilename := fmt.Sprintf("%s - %s (%d)%s",
-					sanitizeFilename(finalArtistName),
-					sanitizeFilename(title),
-					created.ID,
-					filepath.Ext(filename))
-				newPath := filepath.Join(filepath.Dir(oldPath), newFilename)
-				if err := os.Rename(oldPath, newPath); err == nil {
-					newCoverPath := "/uploads/covers/" + newFilename
-					created.CoverURL = &newCoverPath
-					if err := s.repo.Update(ctx, &discs.Disc{
+			if discogsPreview == nil && finalArtistName != "" {
+				fmt.Printf("🔍 Recherche pochette par titre/artiste: %s - %s\n", finalArtistName, title)
+				preview, err := s.searchDiscogsWithResults(title, finalArtistName, "", "")
+				if err == nil && preview.Found {
+					discogsPreview = preview
+					fmt.Printf("✅ Pochette trouvée par titre/artiste: %s\n", preview.CoverURL)
+				} else {
+					fmt.Printf("⚠️ Pas de pochette trouvée par titre/artiste\n")
+				}
+			}
+			if discogsPreview != nil && discogsPreview.Found {
+				fmt.Printf("📥 Téléchargement de la pochette pour le disque ID: %d\n", created.ID)
+				coverPath, err := s.handleDiscogsCoverImage(discogsPreview, title, finalArtistName, created.ID)
+				if err != nil {
+					fmt.Printf("❌ Erreur téléchargement pochette: %v\n", err)
+				} else if coverPath != nil && *coverPath != "" {
+					fmt.Printf("✅ Pochette téléchargée: %s\n", *coverPath)
+					created.CoverURL = coverPath
+					fmt.Printf("💾 Mise à jour du cover_url en base pour ID: %d\n", created.ID)
+					if err := s.repo.Update(bgCtx, &discs.Disc{
 						ID:          &created.ID,
 						Title:       created.Title,
 						ArtistID:    created.ArtistID,
@@ -1001,71 +1061,21 @@ func (s *DiscService) CreateDisc(
 						LabelID:     created.LabelID,
 						ReleaseYear: created.ReleaseYear,
 						Barcode:     created.Barcode,
-						CoverURL:    &newCoverPath,
+						CoverURL:    coverPath,
 						Notes:       created.Notes,
 						Price:       created.Price,
 						Quantity:    created.Quantity,
 					}); err != nil {
 						fmt.Printf("❌ Erreur mise à jour cover_url: %v\n", err)
+					} else {
+						fmt.Printf("✅ cover_url mis à jour avec succès en base\n")
 					}
 				}
-			}
-		}
-	} else {
-		var discogsPreview *CoverPreview
-		if barcode != nil && *barcode != "" {
-			fmt.Printf("🔍 Recherche pochette par code-barres: %s\n", *barcode)
-			preview, err := s.searchDiscogsByBarcode(*barcode)
-			if err == nil && preview.Found {
-				discogsPreview = preview
-				fmt.Printf("✅ Pochette trouvée par code-barres: %s\n", preview.CoverURL)
 			} else {
-				fmt.Printf("⚠️ Pas de pochette trouvée par code-barres\n")
+				fmt.Printf("⚠️ Aucune URL de pochette trouvée\n")
 			}
 		}
-		if discogsPreview == nil && finalArtistName != "" {
-			fmt.Printf("🔍 Recherche pochette par titre/artiste: %s - %s\n", finalArtistName, title)
-			preview, err := s.searchDiscogsWithResults(title, finalArtistName, "", "")
-			if err == nil && preview.Found {
-				discogsPreview = preview
-				fmt.Printf("✅ Pochette trouvée par titre/artiste: %s\n", preview.CoverURL)
-			} else {
-				fmt.Printf("⚠️ Pas de pochette trouvée par titre/artiste\n")
-			}
-		}
-		if discogsPreview != nil && discogsPreview.Found {
-			fmt.Printf("📥 Téléchargement de la pochette pour le disque ID: %d\n", created.ID)
-			coverPath, err := s.handleDiscogsCoverImage(discogsPreview, title, finalArtistName, created.ID)
-			if err != nil {
-				fmt.Printf("❌ Erreur téléchargement pochette: %v\n", err)
-			} else if coverPath != nil && *coverPath != "" {
-				fmt.Printf("✅ Pochette téléchargée: %s\n", *coverPath)
-				created.CoverURL = coverPath
-				fmt.Printf("💾 Mise à jour du cover_url en base pour ID: %d\n", created.ID)
-				if err := s.repo.Update(ctx, &discs.Disc{
-					ID:          &created.ID,
-					Title:       created.Title,
-					ArtistID:    created.ArtistID,
-					GenreID:     created.GenreID,
-					FormatID:    created.FormatID,
-					CountryID:   created.CountryID,
-					LabelID:     created.LabelID,
-					ReleaseYear: created.ReleaseYear,
-					Barcode:     created.Barcode,
-					CoverURL:    coverPath,
-					Notes:       created.Notes,
-					Price:       created.Price,
-					Quantity:    created.Quantity,
-				}); err != nil {
-					fmt.Printf("❌ Erreur mise à jour cover_url: %v\n", err)
-				} else {
-					fmt.Printf("✅ cover_url mis à jour avec succès en base\n")
-				}
-			}
-		} else {
-			fmt.Printf("⚠️ Aucune URL de pochette trouvée\n")
-		}
-	}
+	}()
 
 	if len(trackItems) > 0 {
 		trackList := make([]tracks.Track, len(trackItems))
