@@ -3,7 +3,11 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { discogsApi } from '@/services/discogsApi'
 import { discValidation } from '@/services/discValidation'
 
-export function useBarcodeScanner() {
+// onResult(outcome) est appelé après CHAQUE tentative de recherche, quel que
+// soit le déclencheur (saisie/Entrée, douchette physique, import fichier) —
+// utile pour un composant qui veut afficher un résultat unique peu importe
+// comment le code-barres a été obtenu, sans dupliquer cette logique.
+export function useBarcodeScanner(onResult) {
   const barcode = ref('')
   const scanBuffer = ref('')
   const scannerDetected = ref(false)
@@ -65,27 +69,34 @@ export function useBarcodeScanner() {
     }
     
     scanInProgress.value = true
-    
+
     try {
       const existingDisc = await discogsApi.checkBarcodeExists(code)
-      
+
       if (existingDisc) {
         scanInProgress.value = false
-        return { success: true, exists: true, disc: existingDisc }
+        const outcome = { success: true, exists: true, disc: existingDisc }
+        onResult?.(outcome)
+        return outcome
       }
-      
+
       const result = await discogsApi.searchByBarcode(code)
       scanInProgress.value = false
-      
+
+      let outcome
       if (result) {
-        return { success: true, exists: false, data: result }
+        outcome = { success: true, exists: false, data: result }
       } else {
-        return { success: false, error: 'Aucun résultat trouvé sur Discogs' }
+        outcome = { success: false, error: 'Aucun résultat trouvé sur Discogs' }
       }
+      onResult?.(outcome)
+      return outcome
     } catch (error) {
       scanInProgress.value = false
       console.error('Erreur recherche code-barres:', error)
-      return { success: false, error: error.message || 'Erreur lors de la recherche' }
+      const outcome = { success: false, error: error.message || 'Erreur lors de la recherche' }
+      onResult?.(outcome)
+      return outcome
     }
   }
   

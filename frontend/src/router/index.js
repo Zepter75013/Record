@@ -15,6 +15,7 @@ import ResetPassword from '@/views/ResetPassword.vue' // 🆕 AJOUTÉ
 import PreferencesView from '@/views/PreferencesView.vue'
 import ProfileView from '@/views/ProfileView.vue'
 import ReportsView from '@/views/ReportsView.vue'
+import CheckDiscView from '@/views/CheckDiscView.vue'
 
 import { useAuthStore } from '@/stores/auth'
 
@@ -94,6 +95,12 @@ const routes = [
         path: 'settings/reports',
         name: 'Reports',
         component: ReportsView,
+        meta: { requiresAuth: true }
+      },
+      {
+        path: 'check-disc',
+        name: 'CheckDisc',
+        component: CheckDiscView,
         meta: { requiresAuth: true }
       },
       // Routes des disques
