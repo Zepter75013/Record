@@ -408,6 +408,14 @@ watch(() => props.artistData, (newData) => {
 </script>
 
 <style scoped>
+
+/* Teleporté à body : sans ce z-index dédié, hérite du .modal-overlay
+   partagé (z-index: 50, App.vue), invisible derrière la modale
+   d'ajout/édition de disque (.discs-modal-overlay, z-index: 9999) quand
+   ouvert via son bouton "+". */
+.modal-overlay {
+  z-index: 10000;
+}
 .modal-card.is-saving {
   pointer-events: none;
   opacity: 0.9;
