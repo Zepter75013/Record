@@ -2,6 +2,7 @@
 // records-manager/frontend/src/views/DiscsView.vue
 import DiscsModal from '@/components/DiscsModal/DiscsModal.vue';
 import TracklistModal from '@/components/TracklistModal.vue';
+import CheckDiscModal from '@/components/CheckDiscModal.vue';
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { useApi } from '@/composables/useApi';
 import { formatCurrency } from '@/utils/format';
@@ -14,6 +15,7 @@ const discToDelete = ref(null);
 const selectedRowId = ref(null);
 const isTracklistModalOpen = ref(false);
 const discForTracklist = ref(null);
+const isCheckDiscModalOpen = ref(false);
 function openTracklistModal(disc) {
   discForTracklist.value = disc;
   isTracklistModalOpen.value = true;
@@ -1456,6 +1458,14 @@ aria-label="Exporter les données"
 <span class="icon" aria-hidden="true">📤</span> Exporter
 </button>
 <button
+@click="isCheckDiscModalOpen = true"
+class="filter-toggle-button"
+:disabled="isLoading"
+aria-label="Vérifier si un disque existe déjà"
+>
+<span class="icon" aria-hidden="true">🔎</span> Vérifier
+</button>
+<button
 @click="openModal()"
 class="primary-btn add-button"
 :disabled="isLoading"
@@ -2415,6 +2425,8 @@ v-model="isTracklistModalOpen"
 :disc="discForTracklist"
 @tracks-updated="handleTracksUpdated"
 />
+<!-- ✅ MODALE VÉRIFICATION -->
+<CheckDiscModal v-model="isCheckDiscModalOpen" />
 <!-- ✅ MODALE CONFIRMATION SUPPRESSION (Design unifié) -->
 <Teleport to="body">
 <div

@@ -184,7 +184,6 @@ const NAV_ICON_COLORS = {
   preferences: '#9aa5b1',
   profile: '#5cc8d1',
   reports: '#e0c15c',
-  'check-disc': '#5ecbb0',
   about: '#8fa8a0'
 }
 
@@ -374,12 +373,6 @@ watch(() => route.path, async (newPath) => {
             <span class="nav-icon-chip" :style="{ background: iconGradient('discs') }"><span class="nav-emoji">📀</span></span>
             <span v-if="!effectiveCollapsed">Liste des disques</span>
             <span v-else class="nav-tooltip">Liste des disques</span>
-          </RouterLink>
-
-          <RouterLink to="/dashboard/check-disc" class="nav-item" :class="{ active: isLinkActive('/dashboard/check-disc') }" @click="sidebarOpenMobile = false">
-            <span class="nav-icon-chip" :style="{ background: iconGradient('check-disc') }"><span class="nav-emoji">🔎</span></span>
-            <span v-if="!effectiveCollapsed">Vérifier un disque</span>
-            <span v-else class="nav-tooltip">Vérifier un disque</span>
           </RouterLink>
 
           <div class="nav-group" :class="{ 'nav-group-collapsed': effectiveCollapsed }">
