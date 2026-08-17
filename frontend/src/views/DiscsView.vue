@@ -2191,15 +2191,6 @@ class="icon-action-btn icon-action-btn-danger delete-button"
 <span class="icon" aria-hidden="true">🗑️</span>
 </button>
 <button
-v-if="disc.notes"
-@mouseenter="showNotesTooltip(disc, $event)"
-@mouseleave="hideNotesTooltip"
-class="icon-action-btn info-button"
-:aria-label="`Afficher les notes pour ${disc.title}`"
->
-<span class="icon" aria-hidden="true">ℹ️</span>
-</button>
-<button
 @click.stop="openTracklistModal(disc)"
 class="icon-action-btn tracklist-button"
 :class="{ 'has-tracks': disc.has_tracks }"
@@ -2208,6 +2199,15 @@ class="icon-action-btn tracklist-button"
 <svg class="icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
 <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
 </svg>
+</button>
+<button
+v-if="disc.notes"
+@mouseenter="showNotesTooltip(disc, $event)"
+@mouseleave="hideNotesTooltip"
+class="icon-action-btn info-button"
+:aria-label="`Afficher les notes pour ${disc.title}`"
+>
+<span class="icon" aria-hidden="true">ℹ️</span>
 </button>
 </div>
 </td>
