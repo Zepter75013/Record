@@ -71,12 +71,24 @@ const reportYear = ref('')
 const REPORT_PREFS_KEY = 'recordManagerReportPreferences'
 const OUTPUT_FORMATS = ['pdf', 'xlsx', 'docx', 'csv']
 const ORIENTATIONS = ['portrait', 'landscape']
+const SORT_FIELDS = ['title', 'artist_name', 'genre_name', 'format_name', 'release_year', 'price', 'created_at']
+const SORT_DIRECTIONS = ['asc', 'desc']
+const DEFAULT_SORT_RULES = [{ field: 'created_at', direction: 'desc' }]
 const REPORT_PREFS_DEFAULTS = {
   fontFamily: 'helvetica',
   fontSize: 8,
   includeTracklist: false,
   outputFormat: 'pdf',
   orientation: 'portrait',
+  sortRules: DEFAULT_SORT_RULES,
+}
+
+function sanitizeSortRules(rules) {
+  if (!Array.isArray(rules)) return [...DEFAULT_SORT_RULES]
+  const cleaned = rules.filter(
+    (rule) => rule && SORT_FIELDS.includes(rule.field) && SORT_DIRECTIONS.includes(rule.direction)
+  )
+  return cleaned.length > 0 ? cleaned : [...DEFAULT_SORT_RULES]
 }
 
 function loadReportPrefs() {
@@ -92,6 +104,7 @@ function loadReportPrefs() {
       includeTracklist: !!parsed.includeTracklist,
       outputFormat: OUTPUT_FORMATS.includes(parsed.outputFormat) ? parsed.outputFormat : REPORT_PREFS_DEFAULTS.outputFormat,
       orientation: ORIENTATIONS.includes(parsed.orientation) ? parsed.orientation : REPORT_PREFS_DEFAULTS.orientation,
+      sortRules: sanitizeSortRules(parsed.sortRules),
     }
   } catch {
     return { ...REPORT_PREFS_DEFAULTS }
@@ -107,6 +120,46 @@ const reportFontSize = ref(reportPrefs.fontSize)
 // (Vinyle/CD/...), une notion complètement différente.
 const reportOutputFormat = ref(reportPrefs.outputFormat)
 const reportOrientation = ref(reportPrefs.orientation)
+// Tri multi-critères du tableau détaillé du rapport (ex: Genre puis Artiste
+// puis Titre) — une liste ordonnée de règles appliquées comme un ORDER BY
+// SQL à plusieurs colonnes : la 1ère règle départage en premier, la 2e ne
+// s'applique qu'en cas d'égalité sur la 1ère, etc.
+const reportSortRules = ref(reportPrefs.sortRules.map((rule) => ({ ...rule })))
+
+const sortFieldOptions = [
+  { value: 'title', label: 'Titre' },
+  { value: 'artist_name', label: 'Artiste' },
+  { value: 'genre_name', label: 'Genre' },
+  { value: 'format_name', label: 'Format' },
+  { value: 'release_year', label: 'Année' },
+  { value: 'price', label: 'Prix' },
+  { value: 'created_at', label: "Date d'ajout" },
+]
+
+const sortDirectionOptions = [
+  { value: 'asc', label: 'Croissant' },
+  { value: 'desc', label: 'Décroissant' },
+]
+
+function availableSortFields(index) {
+  const usedElsewhere = new Set(
+    reportSortRules.value.filter((_, i) => i !== index).map((rule) => rule.field)
+  )
+  return sortFieldOptions.filter((option) => !usedElsewhere.has(option.value))
+}
+
+function addSortRule() {
+  const unused = sortFieldOptions.find(
+    (option) => !reportSortRules.value.some((rule) => rule.field === option.value)
+  )
+  if (!unused) return
+  reportSortRules.value.push({ field: unused.value, direction: 'asc' })
+}
+
+function removeSortRule(index) {
+  if (reportSortRules.value.length <= 1) return
+  reportSortRules.value.splice(index, 1)
+}
 
 const outputFormatOptions = [
   { value: 'pdf', label: 'PDF' },
@@ -120,18 +173,23 @@ const orientationOptions = [
   { value: 'landscape', label: 'Paysage' },
 ]
 
-watch([reportFontFamily, reportFontSize, reportIncludeTracklist, reportOutputFormat, reportOrientation], () => {
-  localStorage.setItem(
-    REPORT_PREFS_KEY,
-    JSON.stringify({
-      fontFamily: reportFontFamily.value,
-      fontSize: reportFontSize.value,
-      includeTracklist: reportIncludeTracklist.value,
-      outputFormat: reportOutputFormat.value,
-      orientation: reportOrientation.value,
-    })
-  )
-})
+watch(
+  [reportFontFamily, reportFontSize, reportIncludeTracklist, reportOutputFormat, reportOrientation, reportSortRules],
+  () => {
+    localStorage.setItem(
+      REPORT_PREFS_KEY,
+      JSON.stringify({
+        fontFamily: reportFontFamily.value,
+        fontSize: reportFontSize.value,
+        includeTracklist: reportIncludeTracklist.value,
+        outputFormat: reportOutputFormat.value,
+        orientation: reportOrientation.value,
+        sortRules: reportSortRules.value,
+      })
+    )
+  },
+  { deep: true }
+)
 
 // ⚠️ jsPDF n'embarque que ces 3 familles sans avoir à fournir un fichier de
 // police (.ttf) à intégrer au document — Helvetica/Times/Courier sont les
@@ -297,9 +355,31 @@ const monthlyAcquisitions = computed(() => {
   return { labels, values }
 })
 
-const reportRows = computed(() =>
-  [...filteredDiscs.value].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-)
+function compareSortField(a, b, field) {
+  if (field === 'release_year') {
+    return (a.release_year || 0) - (b.release_year || 0)
+  }
+  if (field === 'price') {
+    const priceA = a.price != null && a.price !== '' ? parseFloat(a.price) : -Infinity
+    const priceB = b.price != null && b.price !== '' ? parseFloat(b.price) : -Infinity
+    return priceA - priceB
+  }
+  if (field === 'created_at') {
+    return new Date(a.created_at) - new Date(b.created_at)
+  }
+  return String(a[field] || '').localeCompare(String(b[field] || ''), 'fr', { sensitivity: 'base' })
+}
+
+const reportRows = computed(() => {
+  const rules = reportSortRules.value.length > 0 ? reportSortRules.value : DEFAULT_SORT_RULES
+  return [...filteredDiscs.value].sort((a, b) => {
+    for (const rule of rules) {
+      const cmp = compareSortField(a, b, rule.field)
+      if (cmp !== 0) return rule.direction === 'desc' ? -cmp : cmp
+    }
+    return 0
+  })
+})
 
 function formatFilterDate(value) {
   if (!value) return ''
@@ -325,6 +405,21 @@ const criteriaDescription = computed(() => {
   if (reportFormat.value) parts.push(`Format : ${reportFormat.value}`)
   if (reportYear.value) parts.push(`Année : ${reportYear.value}`)
 
+  const isDefaultSort =
+    reportSortRules.value.length === 1 &&
+    reportSortRules.value[0].field === DEFAULT_SORT_RULES[0].field &&
+    reportSortRules.value[0].direction === DEFAULT_SORT_RULES[0].direction
+  if (!isDefaultSort) {
+    const sortLabel = reportSortRules.value
+      .map((rule) => {
+        const field = sortFieldOptions.find((option) => option.value === rule.field)
+        const direction = rule.direction === 'desc' ? '↓' : '↑'
+        return `${field ? field.label : rule.field} ${direction}`
+      })
+      .join(', ')
+    parts.push(`Tri : ${sortLabel}`)
+  }
+
   return parts.join(' • ')
 })
 
@@ -341,6 +436,7 @@ function resetFilters() {
   reportFontSize.value = 8
   reportOutputFormat.value = 'pdf'
   reportOrientation.value = 'portrait'
+  reportSortRules.value = DEFAULT_SORT_RULES.map((rule) => ({ ...rule }))
 }
 
 // Les polices standard de jsPDF (Helvetica) n'ont pas les glyphes des espaces
@@ -742,7 +838,7 @@ async function generatePdfBlob() {
     headStyles: { fillColor: [59, 130, 246], textColor: 255, halign: 'center' },
     alternateRowStyles: { fillColor: [244, 245, 242] },
     columnStyles: {
-      0: { cellWidth: 14, minCellWidth: 14, minCellHeight: 14 },
+      0: { cellWidth: 20, minCellWidth: 20, minCellHeight: 14 },
       6: { halign: 'right', cellWidth: 20, minCellWidth: 20 },
     },
     margin: { left: marginX, right: marginX },
@@ -1247,6 +1343,42 @@ async function generateReport() {
         <p v-if="reportOutputFormat === 'csv'" class="reports-muted reports-format-note">
           ℹ️ Le format CSV ne contient que le tableau détaillé des disques (indicateurs et graphiques non inclus, format tabulaire).
         </p>
+
+        <div class="reports-sort-section">
+          <p class="eyebrow">Tri du tableau détaillé</p>
+          <div class="reports-sort-rules">
+            <div v-for="(rule, index) in reportSortRules" :key="index" class="reports-sort-rule">
+              <span class="reports-sort-rank">{{ index + 1 }}</span>
+              <select v-model="rule.field" class="reports-sort-field">
+                <option v-for="option in availableSortFields(index)" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+              <select v-model="rule.direction" class="reports-sort-direction">
+                <option v-for="option in sortDirectionOptions" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+              <button
+                type="button"
+                class="icon-action-btn"
+                :disabled="reportSortRules.length <= 1"
+                title="Retirer ce critère"
+                @click="removeSortRule(index)"
+              >
+                <span>&times;</span>
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="ghost-btn reports-sort-add"
+            :disabled="reportSortRules.length >= sortFieldOptions.length"
+            @click="addSortRule"
+          >
+            + Ajouter un critère de tri
+          </button>
+        </div>
       </section>
 
       <section class="panel reports-card">
@@ -1369,6 +1501,63 @@ async function generateReport() {
   .reports-field-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.reports-sort-section {
+  margin-top: 1.2rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--line-soft);
+}
+
+.reports-sort-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.reports-sort-rule {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.reports-sort-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: rgba(var(--tint-rgb), 0.08);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.reports-sort-field {
+  flex: 2;
+  min-width: 140px;
+}
+
+.reports-sort-direction {
+  flex: 1;
+  min-width: 120px;
+}
+
+.reports-sort-field,
+.reports-sort-direction {
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(var(--tint-rgb), 0.04);
+  color: var(--text);
+}
+
+.reports-sort-add {
+  margin-top: 0.8rem;
 }
 
 .reports-kpi-grid {
