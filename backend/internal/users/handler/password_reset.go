@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"records-manager/backend/internal/users/service"
@@ -28,7 +29,11 @@ func (h *PasswordResetHandler) RequestPasswordReset(w http.ResponseWriter, r *ht
 
 	err := h.resetService.RequestPasswordReset(req.Email)
 	if err != nil {
-		// Ne pas révéler d'erreur spécifique
+		// On journalise côté serveur (SMTP mal configuré, etc.) sans jamais
+		// révéler d'erreur spécifique au client — sinon une réponse
+		// différente selon que l'email existe ou non permettrait d'énumérer
+		// les comptes.
+		log.Printf("⚠️  Échec de la demande de réinitialisation pour %s: %v", req.Email, err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{

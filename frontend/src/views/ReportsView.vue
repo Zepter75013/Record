@@ -71,7 +71,7 @@ const reportYear = ref('')
 const REPORT_PREFS_KEY = 'recordManagerReportPreferences'
 const OUTPUT_FORMATS = ['pdf', 'xlsx', 'docx', 'csv']
 const ORIENTATIONS = ['portrait', 'landscape']
-const SORT_FIELDS = ['title', 'artist_name', 'genre_name', 'format_name', 'release_year', 'price', 'created_at']
+const SORT_FIELDS = ['title', 'artist_name', 'genre_name', 'format_name', 'country_name', 'release_year', 'price', 'created_at']
 const SORT_DIRECTIONS = ['asc', 'desc']
 const DEFAULT_SORT_RULES = [{ field: 'created_at', direction: 'desc' }]
 const REPORT_PREFS_DEFAULTS = {
@@ -131,6 +131,7 @@ const sortFieldOptions = [
   { value: 'artist_name', label: 'Artiste' },
   { value: 'genre_name', label: 'Genre' },
   { value: 'format_name', label: 'Format' },
+  { value: 'country_name', label: 'Pays' },
   { value: 'release_year', label: 'Année' },
   { value: 'price', label: 'Prix' },
   { value: 'created_at', label: "Date d'ajout" },
