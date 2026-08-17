@@ -9,6 +9,7 @@ import CountriesView from '@/views/CountriesView.vue'
 import LabelsView from '@/views/LabelsView.vue'
 import DiscsView from '@/views/DiscsView.vue'
 import VinylsByArtist from '@/views/VinylsByArtist.vue'
+import GamesView from '@/views/GamesView.vue'
 import ChangePassword from '@/views/ChangePassword.vue'
 import ForgotPassword from '@/views/ForgotPassword.vue'
 import ResetPassword from '@/views/ResetPassword.vue' // 🆕 AJOUTÉ
@@ -107,6 +108,13 @@ const routes = [
         path: 'vinyls/by-artist',
         name: 'VinylsByArtist',
         component: VinylsByArtist,
+        meta: { requiresAuth: true }
+      },
+      // Routes des jeux vidéo
+      {
+        path: 'games',
+        name: 'Games',
+        component: GamesView,
         meta: { requiresAuth: true }
       },
       // Route changement de mot de passe (DANS le Dashboard)

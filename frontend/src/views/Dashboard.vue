@@ -174,6 +174,7 @@ const pieColors = [
 const NAV_ICON_COLORS = {
   home: '#7aa2f7',
   discs: '#e0a15c',
+  games: '#e2685c',
   artists: '#b18cf0',
   'artists-manage': '#9aa5b1',
   'artists-by-disc': '#e0a15c',
@@ -373,6 +374,12 @@ watch(() => route.path, async (newPath) => {
             <span class="nav-icon-chip" :style="{ background: iconGradient('discs') }"><span class="nav-emoji">📀</span></span>
             <span v-if="!effectiveCollapsed">Liste des disques</span>
             <span v-else class="nav-tooltip">Liste des disques</span>
+          </RouterLink>
+
+          <RouterLink to="/dashboard/games" class="nav-item" :class="{ active: isLinkActive('/dashboard/games') }" @click="sidebarOpenMobile = false">
+            <span class="nav-icon-chip" :style="{ background: iconGradient('games') }"><span class="nav-emoji">🎮</span></span>
+            <span v-if="!effectiveCollapsed">Jeux</span>
+            <span v-else class="nav-tooltip">Jeux</span>
           </RouterLink>
 
           <div class="nav-group" :class="{ 'nav-group-collapsed': effectiveCollapsed }">

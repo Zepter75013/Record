@@ -33,6 +33,11 @@ func GetDiscogsToken() string {
 	return os.Getenv("DISCOGS_TOKEN")
 }
 
+// GetRAWGAPIKey récupère la clé API RAWG.io pour la recherche de jeux vidéo
+func GetRAWGAPIKey() string {
+	return os.Getenv("RAWG_API_KEY")
+}
+
 // ✅ NOUVEAU: Récupérer le répertoire des uploads
 func GetUploadsDir() string {
 	uploadsDir := os.Getenv("UPLOADS_DIR")

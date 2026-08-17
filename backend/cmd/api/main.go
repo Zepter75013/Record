@@ -36,12 +36,24 @@ import (
 	formathandler "records-manager/backend/internal/formats/handler"
 	formatrepo "records-manager/backend/internal/formats/repository"
 	formatservice "records-manager/backend/internal/formats/service"
+	gamegenrehandler "records-manager/backend/internal/gamegenres/handler"
+	gamegenrerepo "records-manager/backend/internal/gamegenres/repository"
+	gamegenreservice "records-manager/backend/internal/gamegenres/service"
+	gamehandler "records-manager/backend/internal/games/handler"
+	gamerepo "records-manager/backend/internal/games/repository"
+	gameservice "records-manager/backend/internal/games/service"
 	genrehandler "records-manager/backend/internal/genres/handler"
 	genrerepo "records-manager/backend/internal/genres/repository"
 	genreservice "records-manager/backend/internal/genres/service"
 	labelhandler "records-manager/backend/internal/labels/handler"
 	labelrepo "records-manager/backend/internal/labels/repository"
 	labelservice "records-manager/backend/internal/labels/service"
+	platformhandler "records-manager/backend/internal/platforms/handler"
+	platformrepo "records-manager/backend/internal/platforms/repository"
+	platformservice "records-manager/backend/internal/platforms/service"
+	publisherhandler "records-manager/backend/internal/publishers/handler"
+	publisherrepo "records-manager/backend/internal/publishers/repository"
+	publisherservice "records-manager/backend/internal/publishers/service"
 	"records-manager/backend/internal/report"
 	statshandler "records-manager/backend/internal/stats/handler"
 	statsrepo "records-manager/backend/internal/stats/repository"
@@ -183,6 +195,8 @@ func authMiddlewareWithService(authService authservice.AuthService) mux.Middlewa
 				r.URL.Path == "/api/search-discogs" ||
 				r.URL.Path == "/api/select-discogs-result" ||
 				r.URL.Path == "/api/upload-cover" ||
+				r.URL.Path == "/api/search-rawg" ||
+				r.URL.Path == "/api/select-rawg-result" ||
 				strings.HasPrefix(r.URL.Path, "/api/check-barcode/") ||
 				strings.HasPrefix(r.URL.Path, "/uploads/") {
 				next.ServeHTTP(w, r)
@@ -253,6 +267,15 @@ func main() {
 		log.Println("  ⚠️  DISCOGS_TOKEN: non configuré")
 	}
 
+	rawgAPIKey := os.Getenv("RAWG_API_KEY")
+	if rawgAPIKey != "" {
+		log.Printf("  📌 RAWG_API_KEY: %s...%s (✅ configuré)",
+			rawgAPIKey[:min(5, len(rawgAPIKey))],
+			rawgAPIKey[max(0, len(rawgAPIKey)-5):])
+	} else {
+		log.Println("  ⚠️  RAWG_API_KEY: non configuré")
+	}
+
 	uploadsDir := os.Getenv("UPLOADS_DIR")
 	log.Printf("  📌 UPLOADS_DIR: %s", uploadsDir)
 
@@ -310,6 +333,10 @@ func main() {
 	statsRepository := statsrepo.NewMySQLStatsRepository(db)
 	discRepository := discrepo.NewMySQLDiscRepository(db)
 	trackRepository := tracksrepo.NewMySQLTrackRepository(db)
+	platformRepository := platformrepo.NewMySQLPlatformRepository(db)
+	gameGenreRepository := gamegenrerepo.NewMySQLGameGenreRepository(db)
+	publisherRepository := publisherrepo.NewMySQLPublisherRepository(db)
+	gameRepository := gamerepo.NewMySQLGameRepository(db)
 
 	// 7. Initialisation des services
 	authService := authservice.NewAuthService(userRepository)
@@ -323,6 +350,10 @@ func main() {
 	labelService := labelservice.NewLabelService(labelRepository)
 	statsService := statsservice.NewStatsService(statsRepository)
 	discService := discservice.NewDiscService(discRepository, discogsToken, uploadsDir, trackRepository)
+	platformService := platformservice.NewPlatformService(platformRepository)
+	gameGenreService := gamegenreservice.NewGameGenreService(gameGenreRepository)
+	publisherService := publisherservice.NewPublisherService(publisherRepository)
+	gameService := gameservice.NewGameService(gameRepository, rawgAPIKey, uploadsDir)
 
 	backupService, err := backup.NewService(dbConfig, "./backups")
 	if err != nil {
@@ -358,6 +389,10 @@ func main() {
 	labelHandler := labelhandler.NewLabelHandler(labelService)
 	statsHandler := statshandler.NewStatsHandler(statsService)
 	discHandler := dischandler.NewDiscHandler(discService)
+	platformHandler := platformhandler.NewPlatformHandler(platformService)
+	gameGenreHandler := gamegenrehandler.NewGameGenreHandler(gameGenreService)
+	publisherHandler := publisherhandler.NewPublisherHandler(publisherService)
+	gameHandler := gamehandler.NewGameHandler(gameService)
 	backupHandler := backup.NewHandler(backupService)
 	reportHandler := report.NewHandler(reportService)
 
@@ -444,6 +479,30 @@ func main() {
 	r.HandleFunc("/api/labels/{id}", labelHandler.UpdateLabel).Methods("PUT")
 	r.HandleFunc("/api/labels/{id}", labelHandler.DeleteLabel).Methods("DELETE")
 
+	// Platforms (jeux vidéo)
+	r.HandleFunc("/api/platforms", platformHandler.GetAllPlatforms).Methods("GET")
+	r.HandleFunc("/api/platforms", platformHandler.CreatePlatform).Methods("POST")
+	r.HandleFunc("/api/platforms/create-if-not-exists", platformHandler.CreatePlatformIfNotExists).Methods("POST")
+	r.HandleFunc("/api/platforms/{id}", platformHandler.GetPlatformByID).Methods("GET")
+	r.HandleFunc("/api/platforms/{id}", platformHandler.UpdatePlatform).Methods("PUT")
+	r.HandleFunc("/api/platforms/{id}", platformHandler.DeletePlatform).Methods("DELETE")
+
+	// Game genres (jeux vidéo — vocabulaire distinct des genres musicaux)
+	r.HandleFunc("/api/game-genres", gameGenreHandler.GetAllGameGenres).Methods("GET")
+	r.HandleFunc("/api/game-genres", gameGenreHandler.CreateGameGenre).Methods("POST")
+	r.HandleFunc("/api/game-genres/create-if-not-exists", gameGenreHandler.CreateGameGenreIfNotExists).Methods("POST")
+	r.HandleFunc("/api/game-genres/{id}", gameGenreHandler.GetGameGenreByID).Methods("GET")
+	r.HandleFunc("/api/game-genres/{id}", gameGenreHandler.UpdateGameGenre).Methods("PUT")
+	r.HandleFunc("/api/game-genres/{id}", gameGenreHandler.DeleteGameGenre).Methods("DELETE")
+
+	// Publishers (jeux vidéo)
+	r.HandleFunc("/api/publishers", publisherHandler.GetAllPublishers).Methods("GET")
+	r.HandleFunc("/api/publishers", publisherHandler.CreatePublisher).Methods("POST")
+	r.HandleFunc("/api/publishers/create-if-not-exists", publisherHandler.CreatePublisherIfNotExists).Methods("POST")
+	r.HandleFunc("/api/publishers/{id}", publisherHandler.GetPublisherByID).Methods("GET")
+	r.HandleFunc("/api/publishers/{id}", publisherHandler.UpdatePublisher).Methods("PUT")
+	r.HandleFunc("/api/publishers/{id}", publisherHandler.DeletePublisher).Methods("DELETE")
+
 	// ⭐ Disques - Routes principales
 	r.HandleFunc("/api/discs", discHandler.GetAllDiscs).Methods("GET")
 	r.HandleFunc("/api/discs", discHandler.CreateDisc).Methods("POST")
@@ -466,6 +525,20 @@ func main() {
 	r.HandleFunc("/api/discs/{id}/tracks", discHandler.GetTracks).Methods("GET")
 	r.HandleFunc("/api/discs/{id}/tracks", discHandler.UpdateTracks).Methods("PUT")
 	r.HandleFunc("/api/discs/{id}/tracks/fetch", discHandler.FetchTracks).Methods("POST")
+
+	// ⭐ Jeux vidéo - Routes principales
+	r.HandleFunc("/api/games", gameHandler.GetAllGames).Methods("GET")
+	r.HandleFunc("/api/games", gameHandler.CreateGame).Methods("POST")
+	r.HandleFunc("/api/games/check-barcode", gameHandler.CheckBarcodeExists).Methods("POST")
+
+	// Recherche RAWG (publiques, même logique que search-discogs/select-discogs-result)
+	r.HandleFunc("/api/search-rawg", gameHandler.SearchRAWG).Methods("POST")
+	r.HandleFunc("/api/select-rawg-result", gameHandler.SelectRAWGResult).Methods("POST")
+
+	// Routes authentifiées (CRUD jeux)
+	r.HandleFunc("/api/games/{id}", gameHandler.GetGameByID).Methods("GET")
+	r.HandleFunc("/api/games/{id}", gameHandler.UpdateGame).Methods("PUT")
+	r.HandleFunc("/api/games/{id}", gameHandler.DeleteGame).Methods("DELETE")
 
 	// CORS preflight
 	r.Methods("OPTIONS").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -510,6 +583,9 @@ func main() {
 	log.Printf("   GET  /api/check-barcode/{bc} ✅ PUBLIC")
 	log.Printf("   POST /api/discs/check-barcode 🔐 Auth")
 	log.Printf("   GET/POST/PUT/DELETE /api/discs/* 🔐 Auth")
+	log.Printf("   POST /api/search-rawg ✅ PUBLIC")
+	log.Printf("   POST /api/select-rawg-result ✅ PUBLIC")
+	log.Printf("   GET/POST/PUT/DELETE /api/games/* 🔐 Auth")
 	log.Println("🔒 CORS: http://localhost:5173")
 	log.Println("🔐 Auth JWT activée")
 
