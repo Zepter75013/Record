@@ -370,16 +370,13 @@ watch(() => route.path, async (newPath) => {
             <span v-else class="nav-tooltip">Accueil</span>
           </RouterLink>
 
+          <p v-if="!effectiveCollapsed" class="nav-section-label">Disques</p>
+          <div v-else class="nav-section-divider" role="separator"></div>
+
           <RouterLink to="/dashboard/vinyls" class="nav-item" :class="{ active: isLinkActive('/dashboard/vinyls') }" @click="sidebarOpenMobile = false">
             <span class="nav-icon-chip" :style="{ background: iconGradient('discs') }"><span class="nav-emoji">📀</span></span>
             <span v-if="!effectiveCollapsed">Liste des disques</span>
             <span v-else class="nav-tooltip">Liste des disques</span>
-          </RouterLink>
-
-          <RouterLink to="/dashboard/games" class="nav-item" :class="{ active: isLinkActive('/dashboard/games') }" @click="sidebarOpenMobile = false">
-            <span class="nav-icon-chip" :style="{ background: iconGradient('games') }"><span class="nav-emoji">🎮</span></span>
-            <span v-if="!effectiveCollapsed">Jeux</span>
-            <span v-else class="nav-tooltip">Jeux</span>
           </RouterLink>
 
           <div class="nav-group" :class="{ 'nav-group-collapsed': effectiveCollapsed }">
@@ -452,6 +449,18 @@ watch(() => route.path, async (newPath) => {
             <span v-if="!effectiveCollapsed">Labels</span>
             <span v-else class="nav-tooltip">Labels</span>
           </RouterLink>
+
+          <p v-if="!effectiveCollapsed" class="nav-section-label">Jeux</p>
+          <div v-else class="nav-section-divider" role="separator"></div>
+
+          <RouterLink to="/dashboard/games" class="nav-item" :class="{ active: isLinkActive('/dashboard/games') }" @click="sidebarOpenMobile = false">
+            <span class="nav-icon-chip" :style="{ background: iconGradient('games') }"><span class="nav-emoji">🎮</span></span>
+            <span v-if="!effectiveCollapsed">Liste des jeux</span>
+            <span v-else class="nav-tooltip">Liste des jeux</span>
+          </RouterLink>
+
+          <p v-if="!effectiveCollapsed" class="nav-section-label">Général</p>
+          <div v-else class="nav-section-divider" role="separator"></div>
 
           <RouterLink to="/dashboard/settings/reports" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/reports') }" @click="sidebarOpenMobile = false">
             <span class="nav-icon-chip" :style="{ background: iconGradient('reports') }"><span class="nav-emoji">📈</span></span>
@@ -898,6 +907,21 @@ watch(() => route.path, async (newPath) => {
 .sidebar-nav {
   display: grid;
   gap: 0.45rem;
+}
+
+.nav-section-label {
+  margin: 0.7rem 0 0.1rem 0.9rem;
+  padding: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.nav-section-divider {
+  margin: 0.5rem 0.6rem;
+  border-top: 1px solid var(--line-soft);
 }
 
 .nav-group {
