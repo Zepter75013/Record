@@ -169,6 +169,8 @@ const handleSubmit = async () => {
   height: 100%;
   object-fit: contain;
   filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.35));
+  -webkit-mask-image: radial-gradient(ellipse 62% 62% at center, black 45%, transparent 78%);
+  mask-image: radial-gradient(ellipse 62% 62% at center, black 45%, transparent 78%);
 }
 
 .login-heading {
