@@ -38,7 +38,7 @@ const handleSubmit = async () => {
     <section class="login-card">
       <div class="login-brand">
         <div class="login-logo-wrap">
-          <img src="/vinyl.png" alt="MediaVault" class="login-logo-image" />
+          <img src="/mediavault-logo.png" alt="MediaVault" class="login-logo-image" />
         </div>
       </div>
 

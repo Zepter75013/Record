@@ -48,7 +48,7 @@ const handleLogin = async () => {
 
       <div class="login-brand">
         <div class="login-logo-wrap">
-          <img src="/vinyl.png" alt="MediaVault" class="login-logo-image" />
+          <img src="/mediavault-logo.png" alt="MediaVault" class="login-logo-image" />
         </div>
       </div>
 
@@ -238,6 +238,7 @@ const handleLogin = async () => {
   margin: 0.3rem 0 0;
   color: var(--text, #eef1f3);
   font-size: 1.6rem;
+  font-weight: 800;
   line-height: 1.2;
 }
 
