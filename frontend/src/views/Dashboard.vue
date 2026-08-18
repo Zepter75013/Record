@@ -223,6 +223,9 @@ const NAV_ICON_COLORS = {
   home: '#7aa2f7',
   discs: '#e0a15c',
   games: '#e2685c',
+  platforms: '#6c9bd1',
+  gamegenres: '#c97fd4',
+  publishers: '#f0b429',
   artists: '#b18cf0',
   'artists-manage': '#9aa5b1',
   'artists-by-disc': '#e0a15c',
@@ -537,6 +540,24 @@ watch(() => route.path, async (newPath) => {
               <span class="nav-icon-chip" :style="{ background: iconGradient('games') }"><span class="nav-emoji">🎮</span></span>
               <span v-if="!effectiveCollapsed">Liste des jeux</span>
               <span v-else class="nav-tooltip">Liste des jeux</span>
+            </RouterLink>
+
+            <RouterLink to="/dashboard/settings/platforms" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/platforms') }" @click="sidebarOpenMobile = false">
+              <span class="nav-icon-chip" :style="{ background: iconGradient('platforms') }"><span class="nav-emoji">🕹️</span></span>
+              <span v-if="!effectiveCollapsed">Plateformes</span>
+              <span v-else class="nav-tooltip">Plateformes</span>
+            </RouterLink>
+
+            <RouterLink to="/dashboard/settings/game-genres" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/game-genres') }" @click="sidebarOpenMobile = false">
+              <span class="nav-icon-chip" :style="{ background: iconGradient('gamegenres') }"><span class="nav-emoji">🎯</span></span>
+              <span v-if="!effectiveCollapsed">Genres de jeux</span>
+              <span v-else class="nav-tooltip">Genres de jeux</span>
+            </RouterLink>
+
+            <RouterLink to="/dashboard/settings/publishers" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/publishers') }" @click="sidebarOpenMobile = false">
+              <span class="nav-icon-chip" :style="{ background: iconGradient('publishers') }"><span class="nav-emoji">🏢</span></span>
+              <span v-if="!effectiveCollapsed">Éditeurs</span>
+              <span v-else class="nav-tooltip">Éditeurs</span>
             </RouterLink>
           </div>
 

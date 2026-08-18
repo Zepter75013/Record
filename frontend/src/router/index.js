@@ -10,6 +10,9 @@ import LabelsView from '@/views/LabelsView.vue'
 import DiscsView from '@/views/DiscsView.vue'
 import VinylsByArtist from '@/views/VinylsByArtist.vue'
 import GamesView from '@/views/GamesView.vue'
+import PlatformsView from '@/views/PlatformsView.vue'
+import GameGenresView from '@/views/GameGenresView.vue'
+import PublishersView from '@/views/PublishersView.vue'
 import ChangePassword from '@/views/ChangePassword.vue'
 import ForgotPassword from '@/views/ForgotPassword.vue'
 import ResetPassword from '@/views/ResetPassword.vue' // 🆕 AJOUTÉ
@@ -115,6 +118,24 @@ const routes = [
         path: 'games',
         name: 'Games',
         component: GamesView,
+        meta: { requiresAuth: true }
+      },
+      {
+        path: 'settings/platforms',
+        name: 'Platforms',
+        component: PlatformsView,
+        meta: { requiresAuth: true }
+      },
+      {
+        path: 'settings/game-genres',
+        name: 'GameGenres',
+        component: GameGenresView,
+        meta: { requiresAuth: true }
+      },
+      {
+        path: 'settings/publishers',
+        name: 'Publishers',
+        component: PublishersView,
         meta: { requiresAuth: true }
       },
       // Route changement de mot de passe (DANS le Dashboard)
