@@ -21,7 +21,7 @@ func NewPasswordResetRepository(db *sql.DB) PasswordResetRepository {
 }
 
 func (r *passwordResetRepo) CreateResetToken(userID uint, token string, expiresAt time.Time) error {
-	query := `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)`
+	query := `INSERT INTO common_password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)`
 	_, err := r.DB.Exec(query, userID, token, expiresAt)
 	return err
 }
@@ -31,7 +31,7 @@ func (r *passwordResetRepo) GetResetToken(token string) (uint, bool, error) {
 	var expiresAt time.Time
 	var used bool
 
-	query := `SELECT user_id, expires_at, used FROM password_reset_tokens WHERE token = ?`
+	query := `SELECT user_id, expires_at, used FROM common_password_reset_tokens WHERE token = ?`
 	err := r.DB.QueryRow(query, token).Scan(&userID, &expiresAt, &used)
 
 	if err == sql.ErrNoRows {
@@ -50,13 +50,13 @@ func (r *passwordResetRepo) GetResetToken(token string) (uint, bool, error) {
 }
 
 func (r *passwordResetRepo) MarkTokenAsUsed(token string) error {
-	query := `UPDATE password_reset_tokens SET used = TRUE WHERE token = ?`
+	query := `UPDATE common_password_reset_tokens SET used = TRUE WHERE token = ?`
 	_, err := r.DB.Exec(query, token)
 	return err
 }
 
 func (r *passwordResetRepo) DeleteExpiredTokens() error {
-	query := `DELETE FROM password_reset_tokens WHERE expires_at < NOW() OR used = TRUE`
+	query := `DELETE FROM common_password_reset_tokens WHERE expires_at < NOW() OR used = TRUE`
 	_, err := r.DB.Exec(query)
 	return err
 }

@@ -16,7 +16,7 @@ func NewMySQLLabelRepository(db *sql.DB) *MySQLLabelRepository {
 }
 
 func (r *MySQLLabelRepository) Create(ctx context.Context, label *labels.Label) error {
-	query := `INSERT INTO labels (name, description, created_at, updated_at) 
+	query := `INSERT INTO records_labels (name, description, created_at, updated_at) 
               VALUES (?, ?, NOW(), NOW())`
 
 	result, err := r.db.ExecContext(ctx, query, label.Name, label.Description)
@@ -34,7 +34,7 @@ func (r *MySQLLabelRepository) Create(ctx context.Context, label *labels.Label) 
 }
 
 func (r *MySQLLabelRepository) FindAll(ctx context.Context) ([]labels.Label, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM labels ORDER BY name`
+	query := `SELECT id, name, description, created_at, updated_at FROM records_labels ORDER BY name`
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -56,7 +56,7 @@ func (r *MySQLLabelRepository) FindAll(ctx context.Context) ([]labels.Label, err
 }
 
 func (r *MySQLLabelRepository) FindByID(ctx context.Context, id int) (*labels.Label, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM labels WHERE id = ?`
+	query := `SELECT id, name, description, created_at, updated_at FROM records_labels WHERE id = ?`
 
 	row := r.db.QueryRowContext(ctx, query, id)
 	var l labels.Label
@@ -69,21 +69,21 @@ func (r *MySQLLabelRepository) FindByID(ctx context.Context, id int) (*labels.La
 }
 
 func (r *MySQLLabelRepository) Update(ctx context.Context, label *labels.Label) error {
-	query := `UPDATE labels SET name = ?, description = ?, updated_at = NOW() WHERE id = ?`
+	query := `UPDATE records_labels SET name = ?, description = ?, updated_at = NOW() WHERE id = ?`
 
 	_, err := r.db.ExecContext(ctx, query, label.Name, label.Description, label.ID)
 	return err
 }
 
 func (r *MySQLLabelRepository) Delete(ctx context.Context, id int) error {
-	query := `DELETE FROM labels WHERE id = ?`
+	query := `DELETE FROM records_labels WHERE id = ?`
 
 	_, err := r.db.ExecContext(ctx, query, id)
 	return err
 }
 
 func (r *MySQLLabelRepository) FindByName(ctx context.Context, name string) (*labels.Label, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM labels WHERE name = ?`
+	query := `SELECT id, name, description, created_at, updated_at FROM records_labels WHERE name = ?`
 
 	row := r.db.QueryRowContext(ctx, query, name)
 	var l labels.Label

@@ -15,7 +15,7 @@ func NewMySQLGenreRepository(db *sql.DB) *MySQLGenreRepository {
 }
 
 func (r *MySQLGenreRepository) Create(ctx context.Context, genre *genres.Genre) error {
-	query := `INSERT INTO genres (name, description, created_at, updated_at) 
+	query := `INSERT INTO records_genres (name, description, created_at, updated_at) 
               VALUES (?, ?, NOW(), NOW())`
 
 	result, err := r.db.ExecContext(ctx, query, genre.Name, genre.Description)
@@ -33,7 +33,7 @@ func (r *MySQLGenreRepository) Create(ctx context.Context, genre *genres.Genre) 
 }
 
 func (r *MySQLGenreRepository) FindAll(ctx context.Context) ([]genres.Genre, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM genres ORDER BY name`
+	query := `SELECT id, name, description, created_at, updated_at FROM records_genres ORDER BY name`
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -55,7 +55,7 @@ func (r *MySQLGenreRepository) FindAll(ctx context.Context) ([]genres.Genre, err
 }
 
 func (r *MySQLGenreRepository) FindByID(ctx context.Context, id int) (*genres.Genre, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM genres WHERE id = ?`
+	query := `SELECT id, name, description, created_at, updated_at FROM records_genres WHERE id = ?`
 
 	row := r.db.QueryRowContext(ctx, query, id)
 	var g genres.Genre
@@ -68,21 +68,21 @@ func (r *MySQLGenreRepository) FindByID(ctx context.Context, id int) (*genres.Ge
 }
 
 func (r *MySQLGenreRepository) Update(ctx context.Context, genre *genres.Genre) error {
-	query := `UPDATE genres SET name = ?, description = ?, updated_at = NOW() WHERE id = ?`
+	query := `UPDATE records_genres SET name = ?, description = ?, updated_at = NOW() WHERE id = ?`
 
 	_, err := r.db.ExecContext(ctx, query, genre.Name, genre.Description, genre.ID)
 	return err
 }
 
 func (r *MySQLGenreRepository) Delete(ctx context.Context, id int) error {
-	query := `DELETE FROM genres WHERE id = ?`
+	query := `DELETE FROM records_genres WHERE id = ?`
 
 	_, err := r.db.ExecContext(ctx, query, id)
 	return err
 }
 
 func (r *MySQLGenreRepository) FindByName(ctx context.Context, name string) (*genres.Genre, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM genres WHERE name = ?`
+	query := `SELECT id, name, description, created_at, updated_at FROM records_genres WHERE name = ?`
 
 	row := r.db.QueryRowContext(ctx, query, name)
 	var g genres.Genre

@@ -45,7 +45,7 @@ func NewMySQLDiscRepository(db *sql.DB) *MySQLDiscRepository {
 
 func (r *MySQLDiscRepository) Create(ctx context.Context, disc *discs.Disc) error {
 	query := `
-		INSERT INTO vinyls (
+		INSERT INTO records_vinyls (
 			title, artist_id, genre_id, format_id, country_id, label_id, release_year, barcode, cover_url, notes, price, quantity,
 			apple_music_url, spotify_url, deezer_url, youtube_url, isrc, discogs_release_id,
 			created_at, updated_at
@@ -113,15 +113,15 @@ func (r *MySQLDiscRepository) FindAll(ctx context.Context) ([]discs.DiscWithDeta
 			v.deezer_url,
 			v.youtube_url,
 			v.isrc,
-			EXISTS(SELECT 1 FROM tracks t WHERE t.vinyl_id = v.id) as has_tracks,
+			EXISTS(SELECT 1 FROM records_tracks t WHERE t.vinyl_id = v.id) as has_tracks,
 			v.created_at,
 			v.updated_at
-		FROM vinyls v
-		LEFT JOIN artists a ON v.artist_id = a.id
-		LEFT JOIN genres g ON v.genre_id = g.id
-		LEFT JOIN formats f ON v.format_id = f.id
-		LEFT JOIN countries c ON v.country_id = c.id
-		LEFT JOIN labels l ON v.label_id = l.id
+		FROM records_vinyls v
+		LEFT JOIN records_artists a ON v.artist_id = a.id
+		LEFT JOIN records_genres g ON v.genre_id = g.id
+		LEFT JOIN records_formats f ON v.format_id = f.id
+		LEFT JOIN records_countries c ON v.country_id = c.id
+		LEFT JOIN records_labels l ON v.label_id = l.id
 		ORDER BY v.title`
 
 	rows, err := r.db.QueryContext(ctx, query)
@@ -197,15 +197,15 @@ func (r *MySQLDiscRepository) FindByID(ctx context.Context, id int) (*discs.Disc
 			v.deezer_url,
 			v.youtube_url,
 			v.isrc,
-			EXISTS(SELECT 1 FROM tracks t WHERE t.vinyl_id = v.id) as has_tracks,
+			EXISTS(SELECT 1 FROM records_tracks t WHERE t.vinyl_id = v.id) as has_tracks,
 			v.created_at,
 			v.updated_at
-		FROM vinyls v
-		LEFT JOIN artists a ON v.artist_id = a.id
-		LEFT JOIN genres g ON v.genre_id = g.id
-		LEFT JOIN formats f ON v.format_id = f.id
-		LEFT JOIN countries c ON v.country_id = c.id
-		LEFT JOIN labels l ON v.label_id = l.id
+		FROM records_vinyls v
+		LEFT JOIN records_artists a ON v.artist_id = a.id
+		LEFT JOIN records_genres g ON v.genre_id = g.id
+		LEFT JOIN records_formats f ON v.format_id = f.id
+		LEFT JOIN records_countries c ON v.country_id = c.id
+		LEFT JOIN records_labels l ON v.label_id = l.id
 		WHERE v.id = ?`
 
 	row := r.db.QueryRowContext(ctx, query, id)
@@ -250,7 +250,7 @@ func (r *MySQLDiscRepository) FindByID(ctx context.Context, id int) (*discs.Disc
 
 func (r *MySQLDiscRepository) Update(ctx context.Context, disc *discs.Disc) error {
 	query := `
-		UPDATE vinyls SET
+		UPDATE records_vinyls SET
 			title = ?,
 			artist_id = ?,
 			genre_id = ?,
@@ -299,7 +299,7 @@ func (r *MySQLDiscRepository) Update(ctx context.Context, disc *discs.Disc) erro
 }
 
 func (r *MySQLDiscRepository) Delete(ctx context.Context, id int) error {
-	query := `DELETE FROM vinyls WHERE id = ?`
+	query := `DELETE FROM records_vinyls WHERE id = ?`
 	_, err := r.db.ExecContext(ctx, query, id)
 	return err
 }
@@ -308,7 +308,7 @@ func (r *MySQLDiscRepository) FindByTitle(ctx context.Context, title string) (*d
 	query := `
 		SELECT id, title, artist_id, genre_id, format_id, country_id, label_id, release_year, barcode, cover_url, notes, price, quantity,
 		       apple_music_url, spotify_url, deezer_url, youtube_url, isrc, created_at, updated_at
-		FROM vinyls WHERE title = ?`
+		FROM records_vinyls WHERE title = ?`
 
 	row := r.db.QueryRowContext(ctx, query, title)
 
@@ -351,7 +351,7 @@ func (r *MySQLDiscRepository) FindByBarcode(ctx context.Context, barcode string)
 	query := `
 		SELECT id, title, artist_id, genre_id, format_id, country_id, label_id, release_year, barcode, cover_url, notes, price, quantity,
 		       apple_music_url, spotify_url, deezer_url, youtube_url, isrc, created_at, updated_at
-		FROM vinyls WHERE barcode = ?`
+		FROM records_vinyls WHERE barcode = ?`
 
 	row := r.db.QueryRowContext(ctx, query, barcode)
 
@@ -418,12 +418,12 @@ func (r *MySQLDiscRepository) FindByTitleWithDetails(ctx context.Context, title 
 			v.isrc,
 			v.created_at,
 			v.updated_at
-		FROM vinyls v
-		LEFT JOIN artists a ON v.artist_id = a.id
-		LEFT JOIN genres g ON v.genre_id = g.id
-		LEFT JOIN formats f ON v.format_id = f.id
-		LEFT JOIN countries c ON v.country_id = c.id
-		LEFT JOIN labels l ON v.label_id = l.id
+		FROM records_vinyls v
+		LEFT JOIN records_artists a ON v.artist_id = a.id
+		LEFT JOIN records_genres g ON v.genre_id = g.id
+		LEFT JOIN records_formats f ON v.format_id = f.id
+		LEFT JOIN records_countries c ON v.country_id = c.id
+		LEFT JOIN records_labels l ON v.label_id = l.id
 		WHERE v.title = ?`
 
 	row := r.db.QueryRowContext(ctx, query, title)
@@ -496,12 +496,12 @@ func (r *MySQLDiscRepository) FindByBarcodeWithDetails(ctx context.Context, barc
 			v.isrc,
 			v.created_at,
 			v.updated_at
-		FROM vinyls v
-		LEFT JOIN artists a ON v.artist_id = a.id
-		LEFT JOIN genres g ON v.genre_id = g.id
-		LEFT JOIN formats f ON v.format_id = f.id
-		LEFT JOIN countries c ON v.country_id = c.id
-		LEFT JOIN labels l ON v.label_id = l.id
+		FROM records_vinyls v
+		LEFT JOIN records_artists a ON v.artist_id = a.id
+		LEFT JOIN records_genres g ON v.genre_id = g.id
+		LEFT JOIN records_formats f ON v.format_id = f.id
+		LEFT JOIN records_countries c ON v.country_id = c.id
+		LEFT JOIN records_labels l ON v.label_id = l.id
 		WHERE v.barcode = ?`
 
 	row := r.db.QueryRowContext(ctx, query, barcode)

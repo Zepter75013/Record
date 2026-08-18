@@ -15,7 +15,7 @@ func NewMySQLArtistRepository(db *sql.DB) *MySQLArtistRepository {
 }
 
 func (r *MySQLArtistRepository) Create(ctx context.Context, artist *artists.Artist) error {
-	query := `INSERT INTO artists (name, biography, created_at, updated_at) 
+	query := `INSERT INTO records_artists (name, biography, created_at, updated_at) 
               VALUES (?, ?, NOW(), NOW())`
 
 	result, err := r.db.ExecContext(ctx, query, artist.Name, artist.Biography)
@@ -33,7 +33,7 @@ func (r *MySQLArtistRepository) Create(ctx context.Context, artist *artists.Arti
 }
 
 func (r *MySQLArtistRepository) FindAll(ctx context.Context) ([]artists.Artist, error) {
-	query := `SELECT id, name, biography, created_at, updated_at FROM artists ORDER BY name`
+	query := `SELECT id, name, biography, created_at, updated_at FROM records_artists ORDER BY name`
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -55,7 +55,7 @@ func (r *MySQLArtistRepository) FindAll(ctx context.Context) ([]artists.Artist, 
 }
 
 func (r *MySQLArtistRepository) FindByID(ctx context.Context, id int) (*artists.Artist, error) {
-	query := `SELECT id, name, biography, created_at, updated_at FROM artists WHERE id = ?`
+	query := `SELECT id, name, biography, created_at, updated_at FROM records_artists WHERE id = ?`
 
 	row := r.db.QueryRowContext(ctx, query, id)
 	var a artists.Artist
@@ -68,21 +68,21 @@ func (r *MySQLArtistRepository) FindByID(ctx context.Context, id int) (*artists.
 }
 
 func (r *MySQLArtistRepository) Update(ctx context.Context, artist *artists.Artist) error {
-	query := `UPDATE artists SET name = ?, biography = ?, updated_at = NOW() WHERE id = ?`
+	query := `UPDATE records_artists SET name = ?, biography = ?, updated_at = NOW() WHERE id = ?`
 
 	_, err := r.db.ExecContext(ctx, query, artist.Name, artist.Biography, artist.ID)
 	return err
 }
 
 func (r *MySQLArtistRepository) Delete(ctx context.Context, id int) error {
-	query := `DELETE FROM artists WHERE id = ?`
+	query := `DELETE FROM records_artists WHERE id = ?`
 
 	_, err := r.db.ExecContext(ctx, query, id)
 	return err
 }
 
 func (r *MySQLArtistRepository) FindByName(ctx context.Context, name string) (*artists.Artist, error) {
-	query := `SELECT id, name, biography, created_at, updated_at FROM artists WHERE name = ?`
+	query := `SELECT id, name, biography, created_at, updated_at FROM records_artists WHERE name = ?`
 
 	row := r.db.QueryRowContext(ctx, query, name)
 	var a artists.Artist

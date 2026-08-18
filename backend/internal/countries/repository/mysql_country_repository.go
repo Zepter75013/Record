@@ -15,7 +15,7 @@ func NewMySQLCountryRepository(db *sql.DB) *MySQLCountryRepository {
 }
 
 func (r *MySQLCountryRepository) Create(ctx context.Context, country *countries.Country) error {
-	query := `INSERT INTO countries (name, code, description, created_at, updated_at) 
+	query := `INSERT INTO records_countries (name, code, description, created_at, updated_at) 
               VALUES (?, ?, ?, NOW(), NOW())`
 
 	result, err := r.db.ExecContext(ctx, query, country.Name, country.Code, country.Description)
@@ -33,7 +33,7 @@ func (r *MySQLCountryRepository) Create(ctx context.Context, country *countries.
 }
 
 func (r *MySQLCountryRepository) FindAll(ctx context.Context) ([]countries.Country, error) {
-	query := `SELECT id, name, code, description, created_at, updated_at FROM countries ORDER BY name`
+	query := `SELECT id, name, code, description, created_at, updated_at FROM records_countries ORDER BY name`
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -55,7 +55,7 @@ func (r *MySQLCountryRepository) FindAll(ctx context.Context) ([]countries.Count
 }
 
 func (r *MySQLCountryRepository) FindByID(ctx context.Context, id int) (*countries.Country, error) {
-	query := `SELECT id, name, code, description, created_at, updated_at FROM countries WHERE id = ?`
+	query := `SELECT id, name, code, description, created_at, updated_at FROM records_countries WHERE id = ?`
 
 	row := r.db.QueryRowContext(ctx, query, id)
 	var c countries.Country
@@ -68,7 +68,7 @@ func (r *MySQLCountryRepository) FindByID(ctx context.Context, id int) (*countri
 }
 
 func (r *MySQLCountryRepository) FindByName(ctx context.Context, name string) (*countries.Country, error) {
-	query := `SELECT id, name, code, description, created_at, updated_at FROM countries WHERE name = ?`
+	query := `SELECT id, name, code, description, created_at, updated_at FROM records_countries WHERE name = ?`
 
 	row := r.db.QueryRowContext(ctx, query, name)
 	var c countries.Country
@@ -84,7 +84,7 @@ func (r *MySQLCountryRepository) FindByName(ctx context.Context, name string) (*
 }
 
 func (r *MySQLCountryRepository) FindByCode(ctx context.Context, code string) (*countries.Country, error) {
-	query := `SELECT id, name, code, description, created_at, updated_at FROM countries WHERE code = ?`
+	query := `SELECT id, name, code, description, created_at, updated_at FROM records_countries WHERE code = ?`
 
 	row := r.db.QueryRowContext(ctx, query, code)
 	var c countries.Country
@@ -100,14 +100,14 @@ func (r *MySQLCountryRepository) FindByCode(ctx context.Context, code string) (*
 }
 
 func (r *MySQLCountryRepository) Update(ctx context.Context, country *countries.Country) error {
-	query := `UPDATE countries SET name = ?, code = ?, description = ?, updated_at = NOW() WHERE id = ?`
+	query := `UPDATE records_countries SET name = ?, code = ?, description = ?, updated_at = NOW() WHERE id = ?`
 
 	_, err := r.db.ExecContext(ctx, query, country.Name, country.Code, country.Description, country.ID)
 	return err
 }
 
 func (r *MySQLCountryRepository) Delete(ctx context.Context, id int) error {
-	query := `DELETE FROM countries WHERE id = ?`
+	query := `DELETE FROM records_countries WHERE id = ?`
 
 	_, err := r.db.ExecContext(ctx, query, id)
 	return err

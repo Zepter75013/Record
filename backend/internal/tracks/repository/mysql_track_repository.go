@@ -28,7 +28,7 @@ func (r *MySQLTrackRepository) CreateBatch(ctx context.Context, vinylID int, lis
 		args = append(args, vinylID, i, t.Position, t.Title, t.Duration)
 	}
 
-	query := `INSERT INTO tracks (vinyl_id, track_order, position, title, duration) VALUES ` +
+	query := `INSERT INTO records_tracks (vinyl_id, track_order, position, title, duration) VALUES ` +
 		strings.Join(placeholders, ", ")
 
 	_, err := r.db.ExecContext(ctx, query, args...)
@@ -36,7 +36,7 @@ func (r *MySQLTrackRepository) CreateBatch(ctx context.Context, vinylID int, lis
 }
 
 func (r *MySQLTrackRepository) FindByVinylID(ctx context.Context, vinylID int) ([]tracks.Track, error) {
-	query := `SELECT id, vinyl_id, track_order, position, title, duration FROM tracks WHERE vinyl_id = ? ORDER BY track_order`
+	query := `SELECT id, vinyl_id, track_order, position, title, duration FROM records_tracks WHERE vinyl_id = ? ORDER BY track_order`
 
 	rows, err := r.db.QueryContext(ctx, query, vinylID)
 	if err != nil {
@@ -57,7 +57,7 @@ func (r *MySQLTrackRepository) FindByVinylID(ctx context.Context, vinylID int) (
 }
 
 func (r *MySQLTrackRepository) DeleteByVinylID(ctx context.Context, vinylID int) error {
-	query := `DELETE FROM tracks WHERE vinyl_id = ?`
+	query := `DELETE FROM records_tracks WHERE vinyl_id = ?`
 
 	_, err := r.db.ExecContext(ctx, query, vinylID)
 	return err

@@ -15,7 +15,7 @@ func NewMySQLPlatformRepository(db *sql.DB) *MySQLPlatformRepository {
 }
 
 func (r *MySQLPlatformRepository) Create(ctx context.Context, platform *platforms.Platform) error {
-	query := `INSERT INTO platforms (name, description, created_at, updated_at)
+	query := `INSERT INTO games_platforms (name, description, created_at, updated_at)
               VALUES (?, ?, NOW(), NOW())`
 
 	result, err := r.db.ExecContext(ctx, query, platform.Name, platform.Description)
@@ -33,7 +33,7 @@ func (r *MySQLPlatformRepository) Create(ctx context.Context, platform *platform
 }
 
 func (r *MySQLPlatformRepository) FindAll(ctx context.Context) ([]platforms.Platform, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM platforms ORDER BY name`
+	query := `SELECT id, name, description, created_at, updated_at FROM games_platforms ORDER BY name`
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -55,7 +55,7 @@ func (r *MySQLPlatformRepository) FindAll(ctx context.Context) ([]platforms.Plat
 }
 
 func (r *MySQLPlatformRepository) FindByID(ctx context.Context, id int) (*platforms.Platform, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM platforms WHERE id = ?`
+	query := `SELECT id, name, description, created_at, updated_at FROM games_platforms WHERE id = ?`
 
 	row := r.db.QueryRowContext(ctx, query, id)
 	var p platforms.Platform
@@ -68,21 +68,21 @@ func (r *MySQLPlatformRepository) FindByID(ctx context.Context, id int) (*platfo
 }
 
 func (r *MySQLPlatformRepository) Update(ctx context.Context, platform *platforms.Platform) error {
-	query := `UPDATE platforms SET name = ?, description = ?, updated_at = NOW() WHERE id = ?`
+	query := `UPDATE games_platforms SET name = ?, description = ?, updated_at = NOW() WHERE id = ?`
 
 	_, err := r.db.ExecContext(ctx, query, platform.Name, platform.Description, platform.ID)
 	return err
 }
 
 func (r *MySQLPlatformRepository) Delete(ctx context.Context, id int) error {
-	query := `DELETE FROM platforms WHERE id = ?`
+	query := `DELETE FROM games_platforms WHERE id = ?`
 
 	_, err := r.db.ExecContext(ctx, query, id)
 	return err
 }
 
 func (r *MySQLPlatformRepository) FindByName(ctx context.Context, name string) (*platforms.Platform, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM platforms WHERE name = ?`
+	query := `SELECT id, name, description, created_at, updated_at FROM games_platforms WHERE name = ?`
 
 	row := r.db.QueryRowContext(ctx, query, name)
 	var p platforms.Platform

@@ -15,7 +15,7 @@ func NewMySQLPublisherRepository(db *sql.DB) *MySQLPublisherRepository {
 }
 
 func (r *MySQLPublisherRepository) Create(ctx context.Context, publisher *publishers.Publisher) error {
-	query := `INSERT INTO publishers (name, description, created_at, updated_at)
+	query := `INSERT INTO games_publishers (name, description, created_at, updated_at)
               VALUES (?, ?, NOW(), NOW())`
 
 	result, err := r.db.ExecContext(ctx, query, publisher.Name, publisher.Description)
@@ -33,7 +33,7 @@ func (r *MySQLPublisherRepository) Create(ctx context.Context, publisher *publis
 }
 
 func (r *MySQLPublisherRepository) FindAll(ctx context.Context) ([]publishers.Publisher, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM publishers ORDER BY name`
+	query := `SELECT id, name, description, created_at, updated_at FROM games_publishers ORDER BY name`
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -55,7 +55,7 @@ func (r *MySQLPublisherRepository) FindAll(ctx context.Context) ([]publishers.Pu
 }
 
 func (r *MySQLPublisherRepository) FindByID(ctx context.Context, id int) (*publishers.Publisher, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM publishers WHERE id = ?`
+	query := `SELECT id, name, description, created_at, updated_at FROM games_publishers WHERE id = ?`
 
 	row := r.db.QueryRowContext(ctx, query, id)
 	var p publishers.Publisher
@@ -68,21 +68,21 @@ func (r *MySQLPublisherRepository) FindByID(ctx context.Context, id int) (*publi
 }
 
 func (r *MySQLPublisherRepository) Update(ctx context.Context, publisher *publishers.Publisher) error {
-	query := `UPDATE publishers SET name = ?, description = ?, updated_at = NOW() WHERE id = ?`
+	query := `UPDATE games_publishers SET name = ?, description = ?, updated_at = NOW() WHERE id = ?`
 
 	_, err := r.db.ExecContext(ctx, query, publisher.Name, publisher.Description, publisher.ID)
 	return err
 }
 
 func (r *MySQLPublisherRepository) Delete(ctx context.Context, id int) error {
-	query := `DELETE FROM publishers WHERE id = ?`
+	query := `DELETE FROM games_publishers WHERE id = ?`
 
 	_, err := r.db.ExecContext(ctx, query, id)
 	return err
 }
 
 func (r *MySQLPublisherRepository) FindByName(ctx context.Context, name string) (*publishers.Publisher, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM publishers WHERE name = ?`
+	query := `SELECT id, name, description, created_at, updated_at FROM games_publishers WHERE name = ?`
 
 	row := r.db.QueryRowContext(ctx, query, name)
 	var p publishers.Publisher

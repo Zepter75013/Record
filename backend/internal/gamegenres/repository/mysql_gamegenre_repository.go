@@ -15,7 +15,7 @@ func NewMySQLGameGenreRepository(db *sql.DB) *MySQLGameGenreRepository {
 }
 
 func (r *MySQLGameGenreRepository) Create(ctx context.Context, genre *gamegenres.GameGenre) error {
-	query := `INSERT INTO game_genres (name, description, created_at, updated_at)
+	query := `INSERT INTO games_genres (name, description, created_at, updated_at)
               VALUES (?, ?, NOW(), NOW())`
 
 	result, err := r.db.ExecContext(ctx, query, genre.Name, genre.Description)
@@ -33,7 +33,7 @@ func (r *MySQLGameGenreRepository) Create(ctx context.Context, genre *gamegenres
 }
 
 func (r *MySQLGameGenreRepository) FindAll(ctx context.Context) ([]gamegenres.GameGenre, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM game_genres ORDER BY name`
+	query := `SELECT id, name, description, created_at, updated_at FROM games_genres ORDER BY name`
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -55,7 +55,7 @@ func (r *MySQLGameGenreRepository) FindAll(ctx context.Context) ([]gamegenres.Ga
 }
 
 func (r *MySQLGameGenreRepository) FindByID(ctx context.Context, id int) (*gamegenres.GameGenre, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM game_genres WHERE id = ?`
+	query := `SELECT id, name, description, created_at, updated_at FROM games_genres WHERE id = ?`
 
 	row := r.db.QueryRowContext(ctx, query, id)
 	var g gamegenres.GameGenre
@@ -68,21 +68,21 @@ func (r *MySQLGameGenreRepository) FindByID(ctx context.Context, id int) (*gameg
 }
 
 func (r *MySQLGameGenreRepository) Update(ctx context.Context, genre *gamegenres.GameGenre) error {
-	query := `UPDATE game_genres SET name = ?, description = ?, updated_at = NOW() WHERE id = ?`
+	query := `UPDATE games_genres SET name = ?, description = ?, updated_at = NOW() WHERE id = ?`
 
 	_, err := r.db.ExecContext(ctx, query, genre.Name, genre.Description, genre.ID)
 	return err
 }
 
 func (r *MySQLGameGenreRepository) Delete(ctx context.Context, id int) error {
-	query := `DELETE FROM game_genres WHERE id = ?`
+	query := `DELETE FROM games_genres WHERE id = ?`
 
 	_, err := r.db.ExecContext(ctx, query, id)
 	return err
 }
 
 func (r *MySQLGameGenreRepository) FindByName(ctx context.Context, name string) (*gamegenres.GameGenre, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM game_genres WHERE name = ?`
+	query := `SELECT id, name, description, created_at, updated_at FROM games_genres WHERE name = ?`
 
 	row := r.db.QueryRowContext(ctx, query, name)
 	var g gamegenres.GameGenre

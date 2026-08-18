@@ -15,7 +15,7 @@ func NewMySQLFormatRepository(db *sql.DB) *MySQLFormatRepository {
 }
 
 func (r *MySQLFormatRepository) Create(ctx context.Context, format *formats.Format) error {
-	query := `INSERT INTO formats (name, description, created_at, updated_at) 
+	query := `INSERT INTO records_formats (name, description, created_at, updated_at) 
               VALUES (?, ?, NOW(), NOW())`
 
 	result, err := r.db.ExecContext(ctx, query, format.Name, format.Description)
@@ -33,7 +33,7 @@ func (r *MySQLFormatRepository) Create(ctx context.Context, format *formats.Form
 }
 
 func (r *MySQLFormatRepository) FindAll(ctx context.Context) ([]formats.Format, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM formats ORDER BY name`
+	query := `SELECT id, name, description, created_at, updated_at FROM records_formats ORDER BY name`
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -55,7 +55,7 @@ func (r *MySQLFormatRepository) FindAll(ctx context.Context) ([]formats.Format, 
 }
 
 func (r *MySQLFormatRepository) FindByID(ctx context.Context, id int) (*formats.Format, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM formats WHERE id = ?`
+	query := `SELECT id, name, description, created_at, updated_at FROM records_formats WHERE id = ?`
 
 	row := r.db.QueryRowContext(ctx, query, id)
 	var f formats.Format
@@ -68,21 +68,21 @@ func (r *MySQLFormatRepository) FindByID(ctx context.Context, id int) (*formats.
 }
 
 func (r *MySQLFormatRepository) Update(ctx context.Context, format *formats.Format) error {
-	query := `UPDATE formats SET name = ?, description = ?, updated_at = NOW() WHERE id = ?`
+	query := `UPDATE records_formats SET name = ?, description = ?, updated_at = NOW() WHERE id = ?`
 
 	_, err := r.db.ExecContext(ctx, query, format.Name, format.Description, format.ID)
 	return err
 }
 
 func (r *MySQLFormatRepository) Delete(ctx context.Context, id int) error {
-	query := `DELETE FROM formats WHERE id = ?`
+	query := `DELETE FROM records_formats WHERE id = ?`
 
 	_, err := r.db.ExecContext(ctx, query, id)
 	return err
 }
 
 func (r *MySQLFormatRepository) FindByName(ctx context.Context, name string) (*formats.Format, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM formats WHERE name = ?`
+	query := `SELECT id, name, description, created_at, updated_at FROM records_formats WHERE name = ?`
 
 	row := r.db.QueryRowContext(ctx, query, name)
 	var f formats.Format

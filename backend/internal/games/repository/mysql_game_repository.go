@@ -61,10 +61,10 @@ const gameSelectWithDetails = `
 		g.rawg_id,
 		g.created_at,
 		g.updated_at
-	FROM games g
-	LEFT JOIN platforms p ON g.platform_id = p.id
-	LEFT JOIN game_genres gg ON g.genre_id = gg.id
-	LEFT JOIN publishers pub ON g.publisher_id = pub.id`
+	FROM games_games g
+	LEFT JOIN games_platforms p ON g.platform_id = p.id
+	LEFT JOIN games_genres gg ON g.genre_id = gg.id
+	LEFT JOIN games_publishers pub ON g.publisher_id = pub.id`
 
 func scanGameWithDetails(row interface{ Scan(dest ...any) error }) (*games.GameWithDetails, error) {
 	var g games.GameWithDetails
@@ -95,7 +95,7 @@ func scanGameWithDetails(row interface{ Scan(dest ...any) error }) (*games.GameW
 
 func (r *MySQLGameRepository) Create(ctx context.Context, game *games.Game) error {
 	query := `
-		INSERT INTO games (
+		INSERT INTO games_games (
 			title, platform_id, genre_id, publisher_id, release_year, barcode, cover_url, notes, price, quantity, rawg_id,
 			created_at, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
@@ -180,7 +180,7 @@ func (r *MySQLGameRepository) FindByBarcode(ctx context.Context, barcode string)
 
 func (r *MySQLGameRepository) Update(ctx context.Context, game *games.Game) error {
 	query := `
-		UPDATE games SET
+		UPDATE games_games SET
 			title = ?,
 			platform_id = ?,
 			genre_id = ?,
@@ -214,7 +214,7 @@ func (r *MySQLGameRepository) Update(ctx context.Context, game *games.Game) erro
 }
 
 func (r *MySQLGameRepository) Delete(ctx context.Context, id int) error {
-	query := `DELETE FROM games WHERE id = ?`
+	query := `DELETE FROM games_games WHERE id = ?`
 	_, err := r.db.ExecContext(ctx, query, id)
 	return err
 }

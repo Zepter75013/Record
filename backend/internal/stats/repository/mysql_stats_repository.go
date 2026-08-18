@@ -17,7 +17,7 @@ func (r *mysqlStatsRepository) GetCounts() (map[string]int, error) {
 
 	// Compter les artistes
 	var artistCount int
-	err := r.db.QueryRow("SELECT COUNT(*) FROM artists").Scan(&artistCount)
+	err := r.db.QueryRow("SELECT COUNT(*) FROM records_artists").Scan(&artistCount)
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +25,7 @@ func (r *mysqlStatsRepository) GetCounts() (map[string]int, error) {
 
 	// Compter les genres
 	var genreCount int
-	err = r.db.QueryRow("SELECT COUNT(*) FROM genres").Scan(&genreCount)
+	err = r.db.QueryRow("SELECT COUNT(*) FROM records_genres").Scan(&genreCount)
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +33,7 @@ func (r *mysqlStatsRepository) GetCounts() (map[string]int, error) {
 
 	// Compter les formats
 	var formatCount int
-	err = r.db.QueryRow("SELECT COUNT(*) FROM formats").Scan(&formatCount)
+	err = r.db.QueryRow("SELECT COUNT(*) FROM records_formats").Scan(&formatCount)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +41,7 @@ func (r *mysqlStatsRepository) GetCounts() (map[string]int, error) {
 
 	// Compter les pays
 	var countryCount int
-	err = r.db.QueryRow("SELECT COUNT(*) FROM countries").Scan(&countryCount)
+	err = r.db.QueryRow("SELECT COUNT(*) FROM records_countries").Scan(&countryCount)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func (r *mysqlStatsRepository) GetCounts() (map[string]int, error) {
 
 	// Compter les labels
 	var labelCount int
-	err = r.db.QueryRow("SELECT COUNT(*) FROM labels").Scan(&labelCount)
+	err = r.db.QueryRow("SELECT COUNT(*) FROM records_labels").Scan(&labelCount)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func (r *mysqlStatsRepository) GetCounts() (map[string]int, error) {
 
 	// Compter les vinyls (si la table existe)
 	var vinylCount int
-	err = r.db.QueryRow("SELECT COUNT(*) FROM vinyls").Scan(&vinylCount)
+	err = r.db.QueryRow("SELECT COUNT(*) FROM records_vinyls").Scan(&vinylCount)
 	if err != nil {
 		// Si la table n'existe pas encore, mettre 0
 		stats["vinyls"] = 0
