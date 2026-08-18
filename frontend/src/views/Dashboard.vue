@@ -402,8 +402,8 @@ watch(() => route.path, async (newPath) => {
         <div class="brand">
           <RouterLink to="/dashboard" class="brand-mark" aria-label="Accueil" @click="sidebarOpenMobile = false">💿</RouterLink>
           <div v-if="!effectiveCollapsed">
-            <strong>Disques Manager</strong>
-            <p>Collection vinyle</p>
+            <strong>MediaVault</strong>
+            <p>Audio & Game Collection</p>
           </div>
 
           <button

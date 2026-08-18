@@ -48,13 +48,13 @@ const handleLogin = async () => {
 
       <div class="login-brand">
         <div class="login-logo-wrap">
-          <img src="/vinyl.png" alt="Disques Manager" class="login-logo-image" />
+          <img src="/vinyl.png" alt="MediaVault" class="login-logo-image" />
         </div>
       </div>
 
       <div class="login-heading">
         <p class="eyebrow">Espace privé</p>
-        <h1>Disques Manager</h1>
+        <h1>MediaVault</h1>
         <p class="login-subtitle">Gérez votre collection de disques avec style 🎶</p>
       </div>
 
