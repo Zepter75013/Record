@@ -55,7 +55,7 @@ const handleLogin = async () => {
       <div class="login-heading">
         <p class="eyebrow">Espace privé</p>
         <h1>MediaVault</h1>
-        <p class="login-subtitle">Gérez votre collection de disques avec style 🎶</p>
+        <p class="login-subtitle">Gérez votre collection de disques et jeux vidéo avec style 🎶</p>
       </div>
 
       <div v-if="errorMessage" class="form-error login-error-banner">
