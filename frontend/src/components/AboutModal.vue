@@ -33,7 +33,7 @@ function formatBuildTime(value) {
     <section class="modal-card">
       <div class="modal-header">
         <div>
-          <p class="eyebrow">Disques Manager</p>
+          <p class="eyebrow">MediaVault</p>
           <h2>À propos</h2>
         </div>
 
@@ -44,8 +44,8 @@ function formatBuildTime(value) {
         <div class="about-brand">
           <div class="about-brand-mark">💿</div>
           <div>
-            <strong>Disques Manager</strong>
-            <p>Collection de disques vinyles</p>
+            <strong>MediaVault</strong>
+            <p>Audio & Game Collection</p>
           </div>
         </div>
 
@@ -61,7 +61,7 @@ function formatBuildTime(value) {
         </dl>
 
         <p class="about-note">
-          Application de gestion et de suivi de collection de disques vinyles.
+          Application de gestion et de suivi de ta collection de disques vinyles et de jeux vidéo.
         </p>
       </div>
     </section>

@@ -980,7 +980,7 @@ async function generatePdfBlob() {
     doc.setFontSize(8)
     doc.setTextColor(150, 150, 150)
     doc.text(`Page ${i} / ${pageCount}`, pageWidth - marginX, doc.internal.pageSize.getHeight() - 8, { align: 'right' })
-    doc.text('Disques Manager', marginX, doc.internal.pageSize.getHeight() - 8)
+    doc.text('MediaVault', marginX, doc.internal.pageSize.getHeight() - 8)
   }
 
   return doc.output('blob')
@@ -988,7 +988,7 @@ async function generatePdfBlob() {
 
 async function generateXlsxBlob() {
   const workbook = new ExcelJS.Workbook()
-  workbook.creator = 'Disques Manager'
+  workbook.creator = 'MediaVault'
   workbook.created = new Date()
   // N'affecte que la mise en page à l'impression (une feuille Excel n'a pas
   // de "page" au sens visuel comme un PDF/DOCX tant qu'on ne l'imprime pas).
