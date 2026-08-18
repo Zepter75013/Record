@@ -8,11 +8,13 @@ import { useAuthStore } from '@/stores/auth'
 import StatsWidget from '@/components/StatsWidget.vue'
 import PieChart from '@/components/PieChart.vue'
 import RecentDiscs from '@/components/RecentDiscs.vue'
+import RecentGames from '@/components/RecentGames.vue'
 import MapWidget from '@/components/MapWidget.vue'
 import AboutModal from '@/components/AboutModal.vue'
 
 // Composables
 import { useStats } from '@/composables/useStats'
+import { useGameStats } from '@/composables/useGameStats'
 import { useTooltips } from '@/composables/useTooltips'
 import { useIdleTimeout } from '@/composables/useIdleTimeout'
 
@@ -101,6 +103,25 @@ const openSubmenus = ref({
   settings: false
 })
 
+// État pour les sections repliables de la barre latérale (Disques / Jeux),
+// mémorisé comme le collapse global de la sidebar
+const SECTIONS_STORAGE_KEY = 'sidebarSectionsOpen'
+function loadSectionsOpen() {
+  try {
+    const raw = localStorage.getItem(SECTIONS_STORAGE_KEY)
+    if (!raw) return { discs: true, games: true }
+    const parsed = JSON.parse(raw)
+    return { discs: parsed.discs !== false, games: parsed.games !== false }
+  } catch {
+    return { discs: true, games: true }
+  }
+}
+const sectionsOpen = ref(loadSectionsOpen())
+const toggleSection = (key) => {
+  sectionsOpen.value[key] = !sectionsOpen.value[key]
+  localStorage.setItem(SECTIONS_STORAGE_KEY, JSON.stringify(sectionsOpen.value))
+}
+
 // 🆕 Auto-déconnexion après 1h d'inactivité avec avertissement à 55min
 const { idle, warning, remainingTime, reset } = useIdleTimeout({
  timeout: 60 * 60 * 1000,      // 1 heure
@@ -140,11 +161,35 @@ const {
 } = useStats()
 
 const {
+  stats: gameStats,
+  platformDistribution,
+  genreDistribution: gameGenreDistribution,
+  publisherDistribution,
+  recentGames,
+  fetchGameStats,
+  fetchPlatformDistribution,
+  fetchGameGenreDistribution,
+  fetchPublisherDistribution,
+  fetchRecentGames
+} = useGameStats()
+
+const {
   tooltip,
   showTooltip,
   hideTooltip,
   updateTooltipPosition
 } = useTooltips()
+
+// Choix du tableau de bord affiché sur l'écran Accueil (Disques ou Jeux),
+// mémorisé comme les autres préférences d'affichage de la sidebar
+const DASHBOARD_MODE_KEY = 'dashboardMode'
+const dashboardMode = ref(
+  localStorage.getItem(DASHBOARD_MODE_KEY) === 'games' ? 'games' : 'discs'
+)
+const setDashboardMode = (mode) => {
+  dashboardMode.value = mode
+  localStorage.setItem(DASHBOARD_MODE_KEY, mode)
+}
 
 // Config
 const widgetConfig = {
@@ -153,7 +198,10 @@ const widgetConfig = {
   genres: { icon: '🎵', color: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', title: 'Genres' },
   formats: { icon: '💽', color: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', title: 'Formats' },
   countries: { icon: '🌍', color: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', title: 'Pays' },
-  labels: { icon: '🏷️', color: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)', title: 'Labels' }
+  labels: { icon: '🏷️', color: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)', title: 'Labels' },
+  games: { icon: '🎮', color: 'linear-gradient(135deg, #f6416c 0%, #ff9a44 100%)', title: 'Jeux' },
+  platforms: { icon: '🕹️', color: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', title: 'Plateformes' },
+  publishers: { icon: '🏢', color: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)', title: 'Éditeurs' }
 }
 
 // Format ORIGINAL des couleurs (objets, pas strings)
@@ -267,7 +315,12 @@ const refreshAll = async () => {
       fetchRecentDiscs(),
       fetchGenreDistribution(),
       fetchFormatDistribution(),
-      fetchArtistDistribution()
+      fetchArtistDistribution(),
+      fetchGameStats(),
+      fetchRecentGames(),
+      fetchPlatformDistribution(),
+      fetchGameGenreDistribution(),
+      fetchPublisherDistribution()
     ])
   } catch (err) {
     console.error('Erreur lors du rafraîchissement', err)
@@ -370,94 +423,122 @@ watch(() => route.path, async (newPath) => {
             <span v-else class="nav-tooltip">Accueil</span>
           </RouterLink>
 
-          <p v-if="!effectiveCollapsed" class="nav-section-label">Disques</p>
+          <button
+            v-if="!effectiveCollapsed"
+            type="button"
+            class="nav-section-toggle"
+            :aria-expanded="sectionsOpen.discs"
+            aria-controls="nav-section-discs"
+            @click="toggleSection('discs')"
+          >
+            <span class="nav-section-label">Disques</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="nav-group-chevron" :class="{ 'is-open': sectionsOpen.discs }">
+              <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
           <div v-else class="nav-section-divider" role="separator"></div>
 
-          <RouterLink to="/dashboard/vinyls" class="nav-item" :class="{ active: isLinkActive('/dashboard/vinyls') }" @click="sidebarOpenMobile = false">
-            <span class="nav-icon-chip" :style="{ background: iconGradient('discs') }"><span class="nav-emoji">📀</span></span>
-            <span v-if="!effectiveCollapsed">Liste des disques</span>
-            <span v-else class="nav-tooltip">Liste des disques</span>
-          </RouterLink>
+          <div id="nav-section-discs" v-show="effectiveCollapsed || sectionsOpen.discs" class="nav-section-body">
+            <RouterLink to="/dashboard/vinyls" class="nav-item" :class="{ active: isLinkActive('/dashboard/vinyls') }" @click="sidebarOpenMobile = false">
+              <span class="nav-icon-chip" :style="{ background: iconGradient('discs') }"><span class="nav-emoji">📀</span></span>
+              <span v-if="!effectiveCollapsed">Liste des disques</span>
+              <span v-else class="nav-tooltip">Liste des disques</span>
+            </RouterLink>
 
-          <div class="nav-group" :class="{ 'nav-group-collapsed': effectiveCollapsed }">
-            <button
-              class="nav-item nav-group-toggle"
-              :class="{ active: isLinkActive('/dashboard/settings/artists') || isLinkActive('/dashboard/vinyls/by-artist') }"
-              type="button"
-              aria-label="Artistes"
-              @click="toggleSubmenu('artists')"
-            >
-              <span class="nav-icon-chip" :style="{ background: iconGradient('artists') }"><span class="nav-emoji">🎤</span></span>
-              <span v-if="!effectiveCollapsed" class="nav-group-toggle-label">Artistes</span>
-              <span v-else class="nav-tooltip">Artistes</span>
-              <svg
-                v-if="!effectiveCollapsed"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-                class="nav-group-chevron"
-                :class="{ 'is-open': openSubmenus.artists }"
+            <div class="nav-group" :class="{ 'nav-group-collapsed': effectiveCollapsed }">
+              <button
+                class="nav-item nav-group-toggle"
+                :class="{ active: isLinkActive('/dashboard/settings/artists') || isLinkActive('/dashboard/vinyls/by-artist') }"
+                type="button"
+                aria-label="Artistes"
+                @click="toggleSubmenu('artists')"
               >
-                <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-            </button>
-
-            <transition name="submenu">
-              <div v-show="openSubmenus.artists && !effectiveCollapsed" class="nav-children-rail has-rail">
-                <RouterLink
-                  to="/dashboard/settings/artists"
-                  class="nav-item nav-item-child"
-                  :class="{ active: isLinkActive('/dashboard/settings/artists') }"
-                  @click="sidebarOpenMobile = false"
+                <span class="nav-icon-chip" :style="{ background: iconGradient('artists') }"><span class="nav-emoji">🎤</span></span>
+                <span v-if="!effectiveCollapsed" class="nav-group-toggle-label">Artistes</span>
+                <span v-else class="nav-tooltip">Artistes</span>
+                <svg
+                  v-if="!effectiveCollapsed"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  class="nav-group-chevron"
+                  :class="{ 'is-open': openSubmenus.artists }"
                 >
-                  <span class="nav-icon-chip" :style="{ background: iconGradient('artists-manage') }"><span class="nav-emoji">⚙️</span></span>
-                  <span>Gérer les Artistes</span>
-                </RouterLink>
+                  <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
 
-                <RouterLink
-                  to="/dashboard/vinyls/by-artist"
-                  class="nav-item nav-item-child"
-                  :class="{ active: isLinkActive('/dashboard/vinyls/by-artist') }"
-                  @click="sidebarOpenMobile = false"
-                >
-                  <span class="nav-icon-chip" :style="{ background: iconGradient('artists-by-disc') }"><span class="nav-emoji">💿</span></span>
-                  <span>Disques par Artistes</span>
-                </RouterLink>
-              </div>
-            </transition>
+              <transition name="submenu">
+                <div v-show="openSubmenus.artists && !effectiveCollapsed" class="nav-children-rail has-rail">
+                  <RouterLink
+                    to="/dashboard/settings/artists"
+                    class="nav-item nav-item-child"
+                    :class="{ active: isLinkActive('/dashboard/settings/artists') }"
+                    @click="sidebarOpenMobile = false"
+                  >
+                    <span class="nav-icon-chip" :style="{ background: iconGradient('artists-manage') }"><span class="nav-emoji">⚙️</span></span>
+                    <span>Gérer les Artistes</span>
+                  </RouterLink>
+
+                  <RouterLink
+                    to="/dashboard/vinyls/by-artist"
+                    class="nav-item nav-item-child"
+                    :class="{ active: isLinkActive('/dashboard/vinyls/by-artist') }"
+                    @click="sidebarOpenMobile = false"
+                  >
+                    <span class="nav-icon-chip" :style="{ background: iconGradient('artists-by-disc') }"><span class="nav-emoji">💿</span></span>
+                    <span>Disques par Artistes</span>
+                  </RouterLink>
+                </div>
+              </transition>
+            </div>
+
+            <RouterLink to="/dashboard/settings/genres" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/genres') }" @click="sidebarOpenMobile = false">
+              <span class="nav-icon-chip" :style="{ background: iconGradient('genres') }"><span class="nav-emoji">🎵</span></span>
+              <span v-if="!effectiveCollapsed">Genres</span>
+              <span v-else class="nav-tooltip">Genres</span>
+            </RouterLink>
+
+            <RouterLink to="/dashboard/settings/formats" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/formats') }" @click="sidebarOpenMobile = false">
+              <span class="nav-icon-chip" :style="{ background: iconGradient('formats') }"><span class="nav-emoji">💽</span></span>
+              <span v-if="!effectiveCollapsed">Formats</span>
+              <span v-else class="nav-tooltip">Formats</span>
+            </RouterLink>
+
+            <RouterLink to="/dashboard/settings/countries" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/countries') }" @click="sidebarOpenMobile = false">
+              <span class="nav-icon-chip" :style="{ background: iconGradient('countries') }"><span class="nav-emoji">🌍</span></span>
+              <span v-if="!effectiveCollapsed">Pays</span>
+              <span v-else class="nav-tooltip">Pays</span>
+            </RouterLink>
+
+            <RouterLink to="/dashboard/settings/labels" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/labels') }" @click="sidebarOpenMobile = false">
+              <span class="nav-icon-chip" :style="{ background: iconGradient('labels') }"><span class="nav-emoji">🏷️</span></span>
+              <span v-if="!effectiveCollapsed">Labels</span>
+              <span v-else class="nav-tooltip">Labels</span>
+            </RouterLink>
           </div>
 
-          <RouterLink to="/dashboard/settings/genres" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/genres') }" @click="sidebarOpenMobile = false">
-            <span class="nav-icon-chip" :style="{ background: iconGradient('genres') }"><span class="nav-emoji">🎵</span></span>
-            <span v-if="!effectiveCollapsed">Genres</span>
-            <span v-else class="nav-tooltip">Genres</span>
-          </RouterLink>
-
-          <RouterLink to="/dashboard/settings/formats" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/formats') }" @click="sidebarOpenMobile = false">
-            <span class="nav-icon-chip" :style="{ background: iconGradient('formats') }"><span class="nav-emoji">💽</span></span>
-            <span v-if="!effectiveCollapsed">Formats</span>
-            <span v-else class="nav-tooltip">Formats</span>
-          </RouterLink>
-
-          <RouterLink to="/dashboard/settings/countries" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/countries') }" @click="sidebarOpenMobile = false">
-            <span class="nav-icon-chip" :style="{ background: iconGradient('countries') }"><span class="nav-emoji">🌍</span></span>
-            <span v-if="!effectiveCollapsed">Pays</span>
-            <span v-else class="nav-tooltip">Pays</span>
-          </RouterLink>
-
-          <RouterLink to="/dashboard/settings/labels" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/labels') }" @click="sidebarOpenMobile = false">
-            <span class="nav-icon-chip" :style="{ background: iconGradient('labels') }"><span class="nav-emoji">🏷️</span></span>
-            <span v-if="!effectiveCollapsed">Labels</span>
-            <span v-else class="nav-tooltip">Labels</span>
-          </RouterLink>
-
-          <p v-if="!effectiveCollapsed" class="nav-section-label">Jeux</p>
+          <button
+            v-if="!effectiveCollapsed"
+            type="button"
+            class="nav-section-toggle"
+            :aria-expanded="sectionsOpen.games"
+            aria-controls="nav-section-games"
+            @click="toggleSection('games')"
+          >
+            <span class="nav-section-label">Jeux</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="nav-group-chevron" :class="{ 'is-open': sectionsOpen.games }">
+              <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
           <div v-else class="nav-section-divider" role="separator"></div>
 
-          <RouterLink to="/dashboard/games" class="nav-item" :class="{ active: isLinkActive('/dashboard/games') }" @click="sidebarOpenMobile = false">
-            <span class="nav-icon-chip" :style="{ background: iconGradient('games') }"><span class="nav-emoji">🎮</span></span>
-            <span v-if="!effectiveCollapsed">Liste des jeux</span>
-            <span v-else class="nav-tooltip">Liste des jeux</span>
-          </RouterLink>
+          <div id="nav-section-games" v-show="effectiveCollapsed || sectionsOpen.games" class="nav-section-body">
+            <RouterLink to="/dashboard/games" class="nav-item" :class="{ active: isLinkActive('/dashboard/games') }" @click="sidebarOpenMobile = false">
+              <span class="nav-icon-chip" :style="{ background: iconGradient('games') }"><span class="nav-emoji">🎮</span></span>
+              <span v-if="!effectiveCollapsed">Liste des jeux</span>
+              <span v-else class="nav-tooltip">Liste des jeux</span>
+            </RouterLink>
+          </div>
 
           <p v-if="!effectiveCollapsed" class="nav-section-label">Général</p>
           <div v-else class="nav-section-divider" role="separator"></div>
@@ -580,7 +661,7 @@ watch(() => route.path, async (newPath) => {
                 <span class="title-icon">📊</span>
                 <h1>Tableau de bord</h1>
               </div>
-              
+
               <!-- Bouton déconnexion visible uniquement en mobile (<768px) -->
               <div class="toolbar" v-if="windowWidth < 768">
                 <button @click="handleLogout" class="logout-header-button" title="Déconnexion">
@@ -588,6 +669,29 @@ watch(() => route.path, async (newPath) => {
                   <span class="text">Déconnexion</span>
                 </button>
               </div>
+            </div>
+
+            <div class="dashboard-mode-toggle" role="tablist" aria-label="Choix du tableau de bord">
+              <button
+                type="button"
+                role="tab"
+                class="dashboard-mode-tab"
+                :class="{ active: dashboardMode === 'discs' }"
+                :aria-selected="dashboardMode === 'discs'"
+                @click="setDashboardMode('discs')"
+              >
+                <span class="icon">📀</span> Disques
+              </button>
+              <button
+                type="button"
+                role="tab"
+                class="dashboard-mode-tab"
+                :class="{ active: dashboardMode === 'games' }"
+                :aria-selected="dashboardMode === 'games'"
+                @click="setDashboardMode('games')"
+              >
+                <span class="icon">🎮</span> Jeux
+              </button>
             </div>
           </div>
         </header>
@@ -597,78 +701,151 @@ watch(() => route.path, async (newPath) => {
           <button @click="refreshAll" class="retry-button">Réessayer</button>
         </div>
 
-        <!-- Widgets -->
-        <section class="dashboard-widgets">
-          <!-- Widget principal des disques -->
-          <StatsWidget
-            type="vinyls"
-            :value="stats.vinyls"
-            :config="widgetConfig.vinyls"
-            is-main
-            @click="navigateToSection('vinyls')"
-          />
-
-          <!-- Grille des 5 thématiques -->
-          <div class="thematics-row">
+        <!-- Widgets : Disques -->
+        <template v-if="dashboardMode === 'discs'">
+          <section class="dashboard-widgets">
+            <!-- Widget principal des disques -->
             <StatsWidget
-              v-for="thematic in ['artists', 'genres', 'formats', 'countries', 'labels']"
-              :key="thematic"
-              :type="thematic"
-              :value="stats[thematic]"
-              :config="widgetConfig[thematic]"
-              @click="navigateToSection(thematic)"
-            />
-          </div>
-
-          <!-- Grille des 4 widgets : RecentDiscs + 3 PieCharts -->
-          <div class="charts-row">
-            <RecentDiscs
-              :discs="recentDiscs"
-              @image-error="handleImageError"
-              class="recent-widget"
+              type="vinyls"
+              :value="stats.vinyls"
+              :config="widgetConfig.vinyls"
+              is-main
+              @click="navigateToSection('vinyls')"
             />
 
-            <PieChart
-              :data="artistDistribution"
-              :colors="pieColors"
-              :total="stats.vinyls"
-              title="Par artistes"
-              type="artists"
-              @slice-hover="showTooltip"
-              @mouseleave="hideTooltip"
-              class="pie-widget"
+            <!-- Grille des 5 thématiques -->
+            <div class="thematics-row">
+              <StatsWidget
+                v-for="thematic in ['artists', 'genres', 'formats', 'countries', 'labels']"
+                :key="thematic"
+                :type="thematic"
+                :value="stats[thematic]"
+                :config="widgetConfig[thematic]"
+                @click="navigateToSection(thematic)"
+              />
+            </div>
+
+            <!-- Grille des 4 widgets : RecentDiscs + 3 PieCharts -->
+            <div class="charts-row">
+              <RecentDiscs
+                :discs="recentDiscs"
+                @image-error="handleImageError"
+                class="recent-widget"
+              />
+
+              <PieChart
+                :data="artistDistribution"
+                :colors="pieColors"
+                :total="stats.vinyls"
+                title="Par artistes"
+                type="artists"
+                @slice-hover="showTooltip"
+                @mouseleave="hideTooltip"
+                class="pie-widget"
+              />
+
+              <PieChart
+                :data="genreDistribution"
+                :colors="pieColors"
+                :total="stats.vinyls"
+                title="Par genres"
+                type="genres"
+                @slice-hover="showTooltip"
+                @mouseleave="hideTooltip"
+                class="pie-widget"
+              />
+
+              <PieChart
+                :data="formatDistribution"
+                :colors="pieColors"
+                :total="stats.vinyls"
+                title="Par formats"
+                type="formats"
+                @slice-hover="showTooltip"
+                @mouseleave="hideTooltip"
+                class="pie-widget"
+              />
+            </div>
+          </section>
+
+          <!-- Carte -->
+          <MapWidget
+            :countries="countries"
+            title="Carte des Pays"
+            map-element-id="map-widget"
+          />
+        </template>
+
+        <!-- Widgets : Jeux -->
+        <template v-else>
+          <section class="dashboard-widgets">
+            <!-- Widget principal des jeux -->
+            <StatsWidget
+              type="games"
+              :value="gameStats.games"
+              :config="widgetConfig.games"
+              is-main
+              @click="router.push('/dashboard/games')"
             />
 
-            <PieChart
-              :data="genreDistribution"
-              :colors="pieColors"
-              :total="stats.vinyls"
-              title="Par genres"
-              type="genres"
-              @slice-hover="showTooltip"
-              @mouseleave="hideTooltip"
-              class="pie-widget"
-            />
+            <!-- Grille des 3 thématiques -->
+            <div class="thematics-row">
+              <StatsWidget
+                v-for="thematic in ['platforms', 'genres', 'publishers']"
+                :key="thematic"
+                :type="thematic === 'genres' ? 'genres' : thematic"
+                :value="thematic === 'genres' ? gameStats.genres : gameStats[thematic]"
+                :config="widgetConfig[thematic]"
+                @click="router.push('/dashboard/games')"
+              />
+            </div>
 
-            <PieChart
-              :data="formatDistribution"
-              :colors="pieColors"
-              :total="stats.vinyls"
-              title="Par formats"
-              type="formats"
-              @slice-hover="showTooltip"
-              @mouseleave="hideTooltip"
-              class="pie-widget"
-            />
-          </div>
-        </section>
+            <!-- Grille des 3 widgets : RecentGames + 2 PieCharts -->
+            <div class="charts-row">
+              <RecentGames
+                :games="recentGames"
+                @image-error="handleImageError"
+                class="recent-widget"
+              />
 
-        <!-- Carte -->
-        <MapWidget
-          :countries="countries"
-          title="Carte des Pays"
-          map-element-id="map-widget"
-        />
+              <PieChart
+                :data="platformDistribution"
+                :colors="pieColors"
+                :total="gameStats.games"
+                title="Par plateforme"
+                type="platforms"
+                unit-label="jeux"
+                @slice-hover="showTooltip"
+                @mouseleave="hideTooltip"
+                class="pie-widget"
+              />
+
+              <PieChart
+                :data="gameGenreDistribution"
+                :colors="pieColors"
+                :total="gameStats.games"
+                title="Par genre"
+                type="genres"
+                unit-label="jeux"
+                @slice-hover="showTooltip"
+                @mouseleave="hideTooltip"
+                class="pie-widget"
+              />
+
+              <PieChart
+                :data="publisherDistribution"
+                :colors="pieColors"
+                :total="gameStats.games"
+                title="Par éditeur"
+                type="publishers"
+                unit-label="jeux"
+                @slice-hover="showTooltip"
+                @mouseleave="hideTooltip"
+                class="pie-widget"
+              />
+            </div>
+          </section>
+        </template>
 
         <!-- Overlay de chargement -->
         <div v-show="isLoading" class="loading-overlay">
@@ -909,8 +1086,34 @@ watch(() => route.path, async (newPath) => {
   gap: 0.45rem;
 }
 
+.nav-section-body {
+  display: contents;
+}
+
+.nav-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  width: 100%;
+  margin: 0.7rem 0 0.1rem;
+  padding: 0.2rem 0.9rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.nav-section-toggle:hover {
+  background: rgba(var(--tint-rgb), 0.05);
+}
+
+.nav-section-toggle .nav-group-chevron {
+  color: rgba(var(--tint-rgb), 0.35);
+}
+
 .nav-section-label {
-  margin: 0.7rem 0 0.1rem 0.9rem;
+  margin: 0;
   padding: 0;
   font-size: 0.7rem;
   font-weight: 700;
@@ -1278,6 +1481,40 @@ watch(() => route.path, async (newPath) => {
 .header-title-container {
   display: flex;
   align-items: center;
+}
+
+.dashboard-mode-toggle {
+  display: inline-flex;
+  gap: 0.3rem;
+  padding: 0.3rem;
+  margin-top: 0.9rem;
+  background: rgba(var(--tint-rgb), 0.05);
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+}
+
+.dashboard-mode-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1.1rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-soft);
+  font-weight: 600;
+  font-size: 0.9em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dashboard-mode-tab:hover {
+  color: var(--text);
+}
+
+.dashboard-mode-tab.active {
+  background: var(--accent);
+  color: white;
 }
 
 .title-icon {

@@ -7,7 +7,7 @@ const props = defineProps({
   type: {
     type: String,
     required: true,
-    validator: (value) => ['vinyls', 'artists', 'genres', 'formats', 'countries', 'labels'].includes(value)
+    validator: (value) => ['vinyls', 'artists', 'genres', 'formats', 'countries', 'labels', 'games', 'platforms', 'publishers'].includes(value)
   },
   value: {
     type: Number,

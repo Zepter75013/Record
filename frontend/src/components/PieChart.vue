@@ -22,6 +22,10 @@ const props = defineProps({
   type: {
     type: String,
     default: 'genres' // genres, formats, artists
+  },
+  unitLabel: {
+    type: String,
+    default: 'disques'
   }
 });
 
@@ -138,7 +142,7 @@ const handleMouseLeave = () => {
             {{ total }}
           </text>
           <text x="110" y="122" text-anchor="middle" class="pie-center-subtext">
-            disques
+            {{ unitLabel }}
           </text>
         </svg>
       </div>
