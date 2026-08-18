@@ -442,7 +442,7 @@ watch(() => route.path, async (newPath) => {
           <div v-else class="nav-section-divider" role="separator"></div>
 
           <div id="nav-section-discs" v-show="effectiveCollapsed || sectionsOpen.discs" class="nav-section-body">
-            <RouterLink to="/dashboard/vinyls" class="nav-item" :class="{ active: isLinkActive('/dashboard/vinyls') }" @click="sidebarOpenMobile = false">
+            <RouterLink to="/dashboard/vinyls" class="nav-item nav-subitem" :class="{ active: isLinkActive('/dashboard/vinyls') }" @click="sidebarOpenMobile = false">
               <span class="nav-icon-chip" :style="{ background: iconGradient('discs') }"><span class="nav-emoji">📀</span></span>
               <span v-if="!effectiveCollapsed">Liste des disques</span>
               <span v-else class="nav-tooltip">Liste des disques</span>
@@ -450,7 +450,7 @@ watch(() => route.path, async (newPath) => {
 
             <div class="nav-group" :class="{ 'nav-group-collapsed': effectiveCollapsed }">
               <button
-                class="nav-item nav-group-toggle"
+                class="nav-item nav-subitem nav-group-toggle"
                 :class="{ active: isLinkActive('/dashboard/settings/artists') || isLinkActive('/dashboard/vinyls/by-artist') }"
                 type="button"
                 aria-label="Artistes"
@@ -495,25 +495,25 @@ watch(() => route.path, async (newPath) => {
               </transition>
             </div>
 
-            <RouterLink to="/dashboard/settings/genres" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/genres') }" @click="sidebarOpenMobile = false">
+            <RouterLink to="/dashboard/settings/genres" class="nav-item nav-subitem" :class="{ active: isLinkActive('/dashboard/settings/genres') }" @click="sidebarOpenMobile = false">
               <span class="nav-icon-chip" :style="{ background: iconGradient('genres') }"><span class="nav-emoji">🎵</span></span>
               <span v-if="!effectiveCollapsed">Genres</span>
               <span v-else class="nav-tooltip">Genres</span>
             </RouterLink>
 
-            <RouterLink to="/dashboard/settings/formats" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/formats') }" @click="sidebarOpenMobile = false">
+            <RouterLink to="/dashboard/settings/formats" class="nav-item nav-subitem" :class="{ active: isLinkActive('/dashboard/settings/formats') }" @click="sidebarOpenMobile = false">
               <span class="nav-icon-chip" :style="{ background: iconGradient('formats') }"><span class="nav-emoji">💽</span></span>
               <span v-if="!effectiveCollapsed">Formats</span>
               <span v-else class="nav-tooltip">Formats</span>
             </RouterLink>
 
-            <RouterLink to="/dashboard/settings/countries" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/countries') }" @click="sidebarOpenMobile = false">
+            <RouterLink to="/dashboard/settings/countries" class="nav-item nav-subitem" :class="{ active: isLinkActive('/dashboard/settings/countries') }" @click="sidebarOpenMobile = false">
               <span class="nav-icon-chip" :style="{ background: iconGradient('countries') }"><span class="nav-emoji">🌍</span></span>
               <span v-if="!effectiveCollapsed">Pays</span>
               <span v-else class="nav-tooltip">Pays</span>
             </RouterLink>
 
-            <RouterLink to="/dashboard/settings/labels" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/labels') }" @click="sidebarOpenMobile = false">
+            <RouterLink to="/dashboard/settings/labels" class="nav-item nav-subitem" :class="{ active: isLinkActive('/dashboard/settings/labels') }" @click="sidebarOpenMobile = false">
               <span class="nav-icon-chip" :style="{ background: iconGradient('labels') }"><span class="nav-emoji">🏷️</span></span>
               <span v-if="!effectiveCollapsed">Labels</span>
               <span v-else class="nav-tooltip">Labels</span>
@@ -536,25 +536,25 @@ watch(() => route.path, async (newPath) => {
           <div v-else class="nav-section-divider" role="separator"></div>
 
           <div id="nav-section-games" v-show="effectiveCollapsed || sectionsOpen.games" class="nav-section-body">
-            <RouterLink to="/dashboard/games" class="nav-item" :class="{ active: isLinkActive('/dashboard/games') }" @click="sidebarOpenMobile = false">
+            <RouterLink to="/dashboard/games" class="nav-item nav-subitem" :class="{ active: isLinkActive('/dashboard/games') }" @click="sidebarOpenMobile = false">
               <span class="nav-icon-chip" :style="{ background: iconGradient('games') }"><span class="nav-emoji">🎮</span></span>
               <span v-if="!effectiveCollapsed">Liste des jeux</span>
               <span v-else class="nav-tooltip">Liste des jeux</span>
             </RouterLink>
 
-            <RouterLink to="/dashboard/settings/platforms" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/platforms') }" @click="sidebarOpenMobile = false">
+            <RouterLink to="/dashboard/settings/platforms" class="nav-item nav-subitem" :class="{ active: isLinkActive('/dashboard/settings/platforms') }" @click="sidebarOpenMobile = false">
               <span class="nav-icon-chip" :style="{ background: iconGradient('platforms') }"><span class="nav-emoji">🕹️</span></span>
               <span v-if="!effectiveCollapsed">Plateformes</span>
               <span v-else class="nav-tooltip">Plateformes</span>
             </RouterLink>
 
-            <RouterLink to="/dashboard/settings/game-genres" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/game-genres') }" @click="sidebarOpenMobile = false">
+            <RouterLink to="/dashboard/settings/game-genres" class="nav-item nav-subitem" :class="{ active: isLinkActive('/dashboard/settings/game-genres') }" @click="sidebarOpenMobile = false">
               <span class="nav-icon-chip" :style="{ background: iconGradient('gamegenres') }"><span class="nav-emoji">🎯</span></span>
               <span v-if="!effectiveCollapsed">Genres de jeux</span>
               <span v-else class="nav-tooltip">Genres de jeux</span>
             </RouterLink>
 
-            <RouterLink to="/dashboard/settings/publishers" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/publishers') }" @click="sidebarOpenMobile = false">
+            <RouterLink to="/dashboard/settings/publishers" class="nav-item nav-subitem" :class="{ active: isLinkActive('/dashboard/settings/publishers') }" @click="sidebarOpenMobile = false">
               <span class="nav-icon-chip" :style="{ background: iconGradient('publishers') }"><span class="nav-emoji">🏢</span></span>
               <span v-if="!effectiveCollapsed">Éditeurs</span>
               <span v-else class="nav-tooltip">Éditeurs</span>
@@ -564,25 +564,25 @@ watch(() => route.path, async (newPath) => {
           <p v-if="!effectiveCollapsed" class="nav-section-label">Général</p>
           <div v-else class="nav-section-divider" role="separator"></div>
 
-          <RouterLink to="/dashboard/settings/reports" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/reports') }" @click="sidebarOpenMobile = false">
+          <RouterLink to="/dashboard/settings/reports" class="nav-item nav-subitem" :class="{ active: isLinkActive('/dashboard/settings/reports') }" @click="sidebarOpenMobile = false">
             <span class="nav-icon-chip" :style="{ background: iconGradient('reports') }"><span class="nav-emoji">📈</span></span>
             <span v-if="!effectiveCollapsed">Éditions</span>
             <span v-else class="nav-tooltip">Éditions</span>
           </RouterLink>
 
-          <RouterLink to="/dashboard/settings/preferences" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/preferences') }" @click="sidebarOpenMobile = false">
+          <RouterLink to="/dashboard/settings/preferences" class="nav-item nav-subitem" :class="{ active: isLinkActive('/dashboard/settings/preferences') }" @click="sidebarOpenMobile = false">
             <span class="nav-icon-chip" :style="{ background: iconGradient('preferences') }"><span class="nav-emoji">⚙️</span></span>
             <span v-if="!effectiveCollapsed">Préférences</span>
             <span v-else class="nav-tooltip">Préférences</span>
           </RouterLink>
 
-          <RouterLink to="/dashboard/settings/profile" class="nav-item" :class="{ active: isLinkActive('/dashboard/settings/profile') }" @click="sidebarOpenMobile = false">
+          <RouterLink to="/dashboard/settings/profile" class="nav-item nav-subitem" :class="{ active: isLinkActive('/dashboard/settings/profile') }" @click="sidebarOpenMobile = false">
             <span class="nav-icon-chip" :style="{ background: iconGradient('profile') }"><span class="nav-emoji">👤</span></span>
             <span v-if="!effectiveCollapsed">Mon compte</span>
             <span v-else class="nav-tooltip">Mon compte</span>
           </RouterLink>
 
-          <button type="button" class="nav-item" @click="isAboutModalOpen = true; sidebarOpenMobile = false">
+          <button type="button" class="nav-item nav-subitem" @click="isAboutModalOpen = true; sidebarOpenMobile = false">
             <span class="nav-icon-chip" :style="{ background: iconGradient('about') }"><span class="nav-emoji">ℹ️</span></span>
             <span v-if="!effectiveCollapsed">À propos</span>
             <span v-else class="nav-tooltip">À propos</span>
@@ -1104,7 +1104,7 @@ watch(() => route.path, async (newPath) => {
 
 .sidebar-nav {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.3rem;
 }
 
 .nav-section-body {
@@ -1117,8 +1117,8 @@ watch(() => route.path, async (newPath) => {
   justify-content: space-between;
   gap: 0.4rem;
   width: 100%;
-  margin: 0.7rem 0 0.1rem;
-  padding: 0.2rem 0.9rem;
+  margin: 0.5rem 0 0.05rem;
+  padding: 0.15rem 0.85rem;
   background: none;
   border: none;
   cursor: pointer;
@@ -1141,6 +1141,15 @@ watch(() => route.path, async (newPath) => {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-dim);
+}
+
+/* Le libellé "Général" est un <p> autonome (pas de bouton repliable comme
+   Disques/Jeux) — sans cette règle il n'a pas la même marge que
+   .nav-section-toggle et se retrouve visuellement plus proche du groupe
+   précédent que les deux autres en-têtes de section. */
+p.nav-section-label {
+  margin: 0.5rem 0 0.05rem;
+  padding: 0.15rem 0.85rem;
 }
 
 .nav-section-divider {
@@ -1184,9 +1193,9 @@ watch(() => route.path, async (newPath) => {
 }
 
 .nav-children-rail.has-rail {
-  padding-left: 1.55rem;
+  padding-left: 2.5rem;
   margin-left: 0.35rem;
-  margin-top: 0.35rem;
+  margin-top: 0.3rem;
 }
 
 .nav-children-rail.has-rail::before {
@@ -1200,19 +1209,19 @@ watch(() => route.path, async (newPath) => {
 }
 
 .nav-item-child {
-  gap: 0.55rem;
+  gap: 0.5rem;
   color: rgba(var(--tint-rgb), 0.5);
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   font-weight: 500;
 }
 
 .nav-item-child .nav-icon-chip {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
 }
 
 .nav-item-child .nav-emoji {
-  font-size: 13px;
+  font-size: 11px;
 }
 
 .nav-item {
@@ -1220,18 +1229,30 @@ watch(() => route.path, async (newPath) => {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.6rem;
   border: none;
-  border-radius: 14px;
-  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  padding: 0.6rem 0.85rem;
   background: transparent;
   color: rgba(var(--tint-rgb), 0.68);
   text-align: left;
   text-decoration: none;
-  font-size: 0.92rem;
+  font-size: 0.86rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 160ms ease, color 160ms ease;
+}
+
+/* Décale les items enfants (sous Disques/Jeux/Général) vers la droite pour
+   marquer clairement leur rattachement au libellé de section au-dessus. */
+.nav-subitem {
+  padding-left: 1.7rem;
+}
+
+/* En mode réduit (icônes seules), la barre latérale est trop étroite pour
+   ce décalage — sans ce reset les icônes se retrouveraient désaxées. */
+.sidebar.is-collapsed .nav-subitem {
+  padding-left: 0.85rem;
 }
 
 .nav-tooltip {
@@ -1261,11 +1282,11 @@ watch(() => route.path, async (newPath) => {
 
 .nav-icon-chip {
   flex-shrink: 0;
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   display: grid;
   place-items: center;
-  border-radius: 9px;
+  border-radius: 8px;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.3),
     inset 0 -6px 10px rgba(0, 0, 0, 0.18),
@@ -1278,7 +1299,7 @@ watch(() => route.path, async (newPath) => {
 }
 
 .nav-emoji {
-  font-size: 15px;
+  font-size: 13px;
   line-height: 1;
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
 }
