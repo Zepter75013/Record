@@ -102,7 +102,7 @@ func releaseYearFromDate(dateStr string) *int {
 // premier résultat.
 func (s *GameService) searchRAWGWithResults(title string) (*GamePreview, error) {
 	if s.rawgAPIKey == "" {
-		return &GamePreview{Found: false}, nil
+		return nil, fmt.Errorf("clé RAWG_API_KEY non configurée sur le serveur")
 	}
 	title = strings.TrimSpace(title)
 	if title == "" {

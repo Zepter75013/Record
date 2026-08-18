@@ -34,6 +34,9 @@ export const rawgApi = {
       let errorMessage = 'Erreur lors de la recherche du jeu';
       if (error.response?.status === 401) {
         errorMessage = 'Non autorisé. Veuillez vous reconnecter.';
+      } else if (typeof error.response?.data === 'string' && error.response.data) {
+        // Le backend renvoie du texte brut (http.Error), pas du JSON.
+        errorMessage = error.response.data;
       } else if (error.response?.data?.error) {
         errorMessage = error.response.data.error;
       }
@@ -51,9 +54,9 @@ export const rawgApi = {
       return response.data;
     } catch (error) {
       console.error(`Erreur récupération jeu RAWG ${id}:`, error);
-      throw new Error(
-        error.response?.data?.error || `Échec de la récupération du jeu ${id}`
-      );
+      const backendMessage =
+        typeof error.response?.data === 'string' ? error.response.data : error.response?.data?.error;
+      throw new Error(backendMessage || `Échec de la récupération du jeu ${id}`);
     }
   },
 };
