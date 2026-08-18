@@ -1094,6 +1094,7 @@ watch(() => route.path, async (newPath) => {
   display: block;
   color: var(--text);
   font-size: 0.98rem;
+  font-weight: 800;
 }
 
 .brand p {
