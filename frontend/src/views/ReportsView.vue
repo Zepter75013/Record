@@ -38,40 +38,126 @@ const CHART_COLORS = ['#3b82f6', '#f59e0b', '#22c55e', '#ec4899', '#8b5cf6', '#1
 
 const { get } = useApi()
 
+// ✅ Deux collections possibles pour un rapport — Disques ou Jeux — chargées
+// toutes les deux au montage (collections modestes, pas besoin de lazy-load)
+// et sélectionnées via reportMode. MODE_CONFIG ci-dessous fait toute
+// l'abstraction : le reste du fichier manipule des "items" génériques et
+// lit leurs champs via cfg.value.sub1Field/sub2Field/... plutôt que des noms
+// de champs disques codés en dur.
 const discs = ref([])
+const games = ref([])
 const isLoadingDiscs = ref(true)
-const loadError = ref('')
+const isLoadingGames = ref(true)
+const discsLoadError = ref('')
+const gamesLoadError = ref('')
 
 async function loadDiscs() {
   isLoadingDiscs.value = true
-  loadError.value = ''
+  discsLoadError.value = ''
 
   try {
     const data = await get('/discs')
     discs.value = Array.isArray(data) ? data : []
   } catch (err) {
-    loadError.value = err instanceof Error ? err.message : 'Impossible de charger la collection.'
+    discsLoadError.value = err instanceof Error ? err.message : 'Impossible de charger la collection de disques.'
   } finally {
     isLoadingDiscs.value = false
   }
+}
+
+async function loadGames() {
+  isLoadingGames.value = true
+  gamesLoadError.value = ''
+
+  try {
+    const data = await get('/games')
+    games.value = Array.isArray(data) ? data : []
+  } catch (err) {
+    gamesLoadError.value = err instanceof Error ? err.message : 'Impossible de charger la ludothèque.'
+  } finally {
+    isLoadingGames.value = false
+  }
+}
+
+const MODE_CONFIG = {
+  discs: {
+    icon: '💿',
+    nounSingular: 'disque',
+    nounPlural: 'disques',
+    nounPluralCap: 'Disques',
+    sub1Field: 'artist_name',
+    sub1Label: 'Artiste',
+    sub1AllLabel: 'Tous les artistes',
+    sub2Field: 'format_name',
+    sub2Label: 'Format',
+    sub2AllLabel: 'Tous les formats',
+    breakdown2Field: 'country_name',
+    breakdown2Label: 'Pays',
+    breakdown2Title: 'Répartition par pays',
+    breakdown2EmptyLabel: 'Sans pays',
+    kpi4Field: 'artist_name',
+    kpi4Label: "Nombre d'artistes",
+    hasTracks: true,
+  },
+  games: {
+    icon: '🎮',
+    nounSingular: 'jeu',
+    nounPlural: 'jeux',
+    nounPluralCap: 'Jeux',
+    sub1Field: 'platform_name',
+    sub1Label: 'Plateforme',
+    sub1AllLabel: 'Toutes les plateformes',
+    sub2Field: 'publisher_name',
+    sub2Label: 'Éditeur',
+    sub2AllLabel: 'Tous les éditeurs',
+    breakdown2Field: 'platform_name',
+    breakdown2Label: 'Plateforme',
+    breakdown2Title: 'Répartition par plateforme',
+    breakdown2EmptyLabel: 'Sans plateforme',
+    kpi4Field: 'publisher_name',
+    kpi4Label: "Nombre d'éditeurs",
+    hasTracks: false,
+  },
 }
 
 const reportPeriod = ref('all')
 const reportCustomStart = ref('')
 const reportCustomEnd = ref('')
 const reportGenre = ref('')
-const reportArtist = ref('')
-const reportFormat = ref('')
+const reportSub1 = ref('')
+const reportSub2 = ref('')
 const reportYear = ref('')
 
 // ✅ Préférences de mise en forme du rapport (police/taille/pistes) —
 // persistées en localStorage pour ne pas devoir les reparamétrer à chaque
-// connexion. Les filtres (période/genre/artiste...) ne le sont pas : ils
-// décrivent la portée d'UN rapport ponctuel, pas une préférence d'affichage.
+// connexion. Les filtres (période/genre/artiste...) et le mode (disques/jeux)
+// ne le sont pas : ils décrivent la portée d'UN rapport ponctuel, pas une
+// préférence d'affichage.
 const REPORT_PREFS_KEY = 'recordManagerReportPreferences'
 const OUTPUT_FORMATS = ['pdf', 'xlsx', 'docx', 'csv']
 const ORIENTATIONS = ['portrait', 'landscape']
-const SORT_FIELDS = ['title', 'artist_name', 'genre_name', 'format_name', 'country_name', 'release_year', 'price', 'created_at']
+const DISC_SORT_FIELD_OPTIONS = [
+  { value: 'title', label: 'Titre' },
+  { value: 'artist_name', label: 'Artiste' },
+  { value: 'genre_name', label: 'Genre' },
+  { value: 'format_name', label: 'Format' },
+  { value: 'country_name', label: 'Pays' },
+  { value: 'release_year', label: 'Année' },
+  { value: 'price', label: 'Prix' },
+  { value: 'created_at', label: "Date d'ajout" },
+]
+const GAME_SORT_FIELD_OPTIONS = [
+  { value: 'title', label: 'Titre' },
+  { value: 'platform_name', label: 'Plateforme' },
+  { value: 'genre_name', label: 'Genre' },
+  { value: 'publisher_name', label: 'Éditeur' },
+  { value: 'release_year', label: 'Année' },
+  { value: 'price', label: 'Prix' },
+  { value: 'created_at', label: "Date d'ajout" },
+]
+const ALL_SORT_FIELDS = Array.from(
+  new Set([...DISC_SORT_FIELD_OPTIONS, ...GAME_SORT_FIELD_OPTIONS].map((option) => option.value))
+)
 const SORT_DIRECTIONS = ['asc', 'desc']
 const DEFAULT_SORT_RULES = [{ field: 'created_at', direction: 'desc' }]
 const REPORT_PREFS_DEFAULTS = {
@@ -86,9 +172,18 @@ const REPORT_PREFS_DEFAULTS = {
 function sanitizeSortRules(rules) {
   if (!Array.isArray(rules)) return [...DEFAULT_SORT_RULES]
   const cleaned = rules.filter(
-    (rule) => rule && SORT_FIELDS.includes(rule.field) && SORT_DIRECTIONS.includes(rule.direction)
+    (rule) => rule && ALL_SORT_FIELDS.includes(rule.field) && SORT_DIRECTIONS.includes(rule.direction)
   )
   return cleaned.length > 0 ? cleaned : [...DEFAULT_SORT_RULES]
+}
+
+// Restreint les règles de tri persistées aux champs valides pour le mode
+// choisi — ex: un tri sur "Artiste" resté actif en passant en mode Jeux n'a
+// plus de sens (pas de champ artist_name côté jeux).
+function sanitizeSortRulesForMode(rules, mode) {
+  const validFields = new Set((mode === 'discs' ? DISC_SORT_FIELD_OPTIONS : GAME_SORT_FIELD_OPTIONS).map((o) => o.value))
+  const cleaned = rules.filter((rule) => validFields.has(rule.field))
+  return cleaned.length > 0 ? cleaned : DEFAULT_SORT_RULES.map((rule) => ({ ...rule }))
 }
 
 function loadReportPrefs() {
@@ -116,8 +211,8 @@ const reportIncludeTracklist = ref(reportPrefs.includeTracklist)
 const reportFontFamily = ref(reportPrefs.fontFamily)
 const reportFontSize = ref(reportPrefs.fontSize)
 // Format de sortie du rapport généré — nommé "output" pour ne pas être
-// confondu avec reportFormat, qui est le FILTRE sur le format du disque
-// (Vinyle/CD/...), une notion complètement différente.
+// confondu avec un éventuel filtre sur le format du disque (Vinyle/CD/...),
+// une notion complètement différente.
 const reportOutputFormat = ref(reportPrefs.outputFormat)
 const reportOrientation = ref(reportPrefs.orientation)
 // Tri multi-critères du tableau détaillé du rapport (ex: Genre puis Artiste
@@ -126,16 +221,28 @@ const reportOrientation = ref(reportPrefs.orientation)
 // s'applique qu'en cas d'égalité sur la 1ère, etc.
 const reportSortRules = ref(reportPrefs.sortRules.map((rule) => ({ ...rule })))
 
-const sortFieldOptions = [
-  { value: 'title', label: 'Titre' },
-  { value: 'artist_name', label: 'Artiste' },
-  { value: 'genre_name', label: 'Genre' },
-  { value: 'format_name', label: 'Format' },
-  { value: 'country_name', label: 'Pays' },
-  { value: 'release_year', label: 'Année' },
-  { value: 'price', label: 'Prix' },
-  { value: 'created_at', label: "Date d'ajout" },
-]
+// Mode actif : quelle collection ce rapport porte-t-il ?
+const reportMode = ref('discs')
+const cfg = computed(() => MODE_CONFIG[reportMode.value])
+const activeItems = computed(() => (reportMode.value === 'discs' ? discs.value : games.value))
+const isLoadingItems = computed(() => (reportMode.value === 'discs' ? isLoadingDiscs.value : isLoadingGames.value))
+const loadError = computed(() => (reportMode.value === 'discs' ? discsLoadError.value : gamesLoadError.value))
+
+function setReportMode(mode) {
+  if (!MODE_CONFIG[mode] || mode === reportMode.value) return
+  reportMode.value = mode
+  // Les filtres décrivent la portée d'UN rapport ponctuel pour UNE collection
+  // — un filtre "Artiste" resté actif en passant en mode Jeux filtrerait
+  // silencieusement sur un champ qui n'a plus le même sens (ni la même liste
+  // d'options, déjà recalculée via sub1Options/sub2Options).
+  reportGenre.value = ''
+  reportSub1.value = ''
+  reportSub2.value = ''
+  reportYear.value = ''
+  reportSortRules.value = sanitizeSortRulesForMode(reportSortRules.value, mode)
+}
+
+const sortFieldOptions = computed(() => (reportMode.value === 'discs' ? DISC_SORT_FIELD_OPTIONS : GAME_SORT_FIELD_OPTIONS))
 
 const sortDirectionOptions = [
   { value: 'asc', label: 'Croissant' },
@@ -146,11 +253,11 @@ function availableSortFields(index) {
   const usedElsewhere = new Set(
     reportSortRules.value.filter((_, i) => i !== index).map((rule) => rule.field)
   )
-  return sortFieldOptions.filter((option) => !usedElsewhere.has(option.value))
+  return sortFieldOptions.value.filter((option) => !usedElsewhere.has(option.value))
 }
 
 function addSortRule() {
-  const unused = sortFieldOptions.find(
+  const unused = sortFieldOptions.value.find(
     (option) => !reportSortRules.value.some((rule) => rule.field === option.value)
   )
   if (!unused) return
@@ -255,44 +362,45 @@ function uniqueSortedValues(items, keyOf) {
   return Array.from(values).sort((a, b) => String(a).localeCompare(String(b), 'fr', { sensitivity: 'base' }))
 }
 
-const genreOptions = computed(() => uniqueSortedValues(discs.value, (d) => d.genre_name))
-const artistOptions = computed(() => uniqueSortedValues(discs.value, (d) => d.artist_name))
-const formatOptions = computed(() => uniqueSortedValues(discs.value, (d) => d.format_name))
+const genreOptions = computed(() => uniqueSortedValues(activeItems.value, (i) => i.genre_name))
+const sub1Options = computed(() => uniqueSortedValues(activeItems.value, (i) => i[cfg.value.sub1Field]))
+const sub2Options = computed(() => uniqueSortedValues(activeItems.value, (i) => i[cfg.value.sub2Field]))
 const yearOptions = computed(() =>
-  uniqueSortedValues(discs.value, (d) => d.release_year).sort((a, b) => b - a)
+  uniqueSortedValues(activeItems.value, (i) => i.release_year).sort((a, b) => b - a)
 )
 
-const filteredDiscs = computed(() =>
-  discs.value.filter((disc) => {
-    if (!isWithinRange(disc.created_at, reportPeriod.value)) return false
-    if (reportGenre.value && (disc.genre_name || '') !== reportGenre.value) return false
-    if (reportArtist.value && (disc.artist_name || '') !== reportArtist.value) return false
-    if (reportFormat.value && (disc.format_name || '') !== reportFormat.value) return false
-    if (reportYear.value && String(disc.release_year || '') !== String(reportYear.value)) return false
+const filteredItems = computed(() =>
+  activeItems.value.filter((item) => {
+    if (!isWithinRange(item.created_at, reportPeriod.value)) return false
+    if (reportGenre.value && (item.genre_name || '') !== reportGenre.value) return false
+    if (reportSub1.value && (item[cfg.value.sub1Field] || '') !== reportSub1.value) return false
+    if (reportSub2.value && (item[cfg.value.sub2Field] || '') !== reportSub2.value) return false
+    if (reportYear.value && String(item.release_year || '') !== String(reportYear.value)) return false
     return true
   })
 )
 
-const discCount = computed(() => filteredDiscs.value.length)
+const itemCount = computed(() => filteredItems.value.length)
 
-const pricedDiscs = computed(() =>
-  filteredDiscs.value.filter((disc) => disc.price != null && disc.price !== '' && !Number.isNaN(parseFloat(disc.price)))
+const pricedItems = computed(() =>
+  filteredItems.value.filter((item) => item.price != null && item.price !== '' && !Number.isNaN(parseFloat(item.price)))
 )
 
 const totalValue = computed(() =>
-  pricedDiscs.value.reduce((sum, disc) => sum + parseFloat(disc.price), 0)
+  pricedItems.value.reduce((sum, item) => sum + parseFloat(item.price), 0)
 )
 
 const averagePrice = computed(() =>
-  pricedDiscs.value.length > 0 ? totalValue.value / pricedDiscs.value.length : 0
+  pricedItems.value.length > 0 ? totalValue.value / pricedItems.value.length : 0
 )
 
-const artistCount = computed(() => {
-  const names = new Set()
-  for (const disc of filteredDiscs.value) {
-    if (disc.artist_name) names.add(disc.artist_name)
+const kpi4Count = computed(() => {
+  const values = new Set()
+  for (const item of filteredItems.value) {
+    const value = item[cfg.value.kpi4Field]
+    if (value) values.add(value)
   }
-  return names.size
+  return values.size
 })
 
 function buildBreakdown(items, keyOf, emptyLabel) {
@@ -320,10 +428,10 @@ function buildBreakdown(items, keyOf, emptyLabel) {
 }
 
 const genreBreakdown = computed(() =>
-  buildBreakdown(filteredDiscs.value, (d) => d.genre_name, 'Sans genre')
+  buildBreakdown(filteredItems.value, (i) => i.genre_name, 'Sans genre')
 )
-const countryBreakdown = computed(() =>
-  buildBreakdown(filteredDiscs.value, (d) => d.country_name, 'Sans pays')
+const breakdown2 = computed(() =>
+  buildBreakdown(filteredItems.value, (i) => i[cfg.value.breakdown2Field], cfg.value.breakdown2EmptyLabel)
 )
 
 function monthKey(date) {
@@ -338,9 +446,9 @@ function formatMonthLabel(date) {
 const monthlyAcquisitions = computed(() => {
   const counts = new Map()
 
-  for (const disc of filteredDiscs.value) {
-    if (!disc.created_at) continue
-    const date = new Date(disc.created_at)
+  for (const item of filteredItems.value) {
+    if (!item.created_at) continue
+    const date = new Date(item.created_at)
     if (Number.isNaN(date.getTime())) continue
     const key = monthKey(date)
     counts.set(key, (counts.get(key) || 0) + 1)
@@ -373,7 +481,7 @@ function compareSortField(a, b, field) {
 
 const reportRows = computed(() => {
   const rules = reportSortRules.value.length > 0 ? reportSortRules.value : DEFAULT_SORT_RULES
-  return [...filteredDiscs.value].sort((a, b) => {
+  return [...filteredItems.value].sort((a, b) => {
     for (const rule of rules) {
       const cmp = compareSortField(a, b, rule.field)
       if (cmp !== 0) return rule.direction === 'desc' ? -cmp : cmp
@@ -390,7 +498,7 @@ function formatFilterDate(value) {
 }
 
 const criteriaDescription = computed(() => {
-  const parts = []
+  const parts = [`${cfg.value.icon} ${cfg.value.nounPluralCap}`]
 
   if (reportPeriod.value === 'custom') {
     const start = reportCustomStart.value ? formatFilterDate(reportCustomStart.value) : '…'
@@ -402,8 +510,8 @@ const criteriaDescription = computed(() => {
   }
 
   parts.push(reportGenre.value ? `Genre : ${reportGenre.value}` : 'Tous les genres')
-  if (reportArtist.value) parts.push(`Artiste : ${reportArtist.value}`)
-  if (reportFormat.value) parts.push(`Format : ${reportFormat.value}`)
+  if (reportSub1.value) parts.push(`${cfg.value.sub1Label} : ${reportSub1.value}`)
+  if (reportSub2.value) parts.push(`${cfg.value.sub2Label} : ${reportSub2.value}`)
   if (reportYear.value) parts.push(`Année : ${reportYear.value}`)
 
   const isDefaultSort =
@@ -413,7 +521,7 @@ const criteriaDescription = computed(() => {
   if (!isDefaultSort) {
     const sortLabel = reportSortRules.value
       .map((rule) => {
-        const field = sortFieldOptions.find((option) => option.value === rule.field)
+        const field = sortFieldOptions.value.find((option) => option.value === rule.field)
         const direction = rule.direction === 'desc' ? '↓' : '↑'
         return `${field ? field.label : rule.field} ${direction}`
       })
@@ -429,8 +537,8 @@ function resetFilters() {
   reportCustomStart.value = ''
   reportCustomEnd.value = ''
   reportGenre.value = ''
-  reportArtist.value = ''
-  reportFormat.value = ''
+  reportSub1.value = ''
+  reportSub2.value = ''
   reportYear.value = ''
   reportIncludeTracklist.value = false
   reportFontFamily.value = 'helvetica'
@@ -444,7 +552,7 @@ function resetFilters() {
 // insécable/fine insécable utilisées par Intl pour séparer les milliers —
 // elles s'affichaient comme des "/" ou cassaient l'alignement des chiffres.
 function formatCurrencyForPdf(value) {
-  return formatCurrency(value).replace(/[  ]/g, ' ')
+  return formatCurrency(value).replace(/[  ]/g, ' ')
 }
 
 function formatTableDate(value) {
@@ -463,12 +571,12 @@ function getThumbnailSourceUrl(path) {
   return path.startsWith('/uploads') ? path : '/uploads/' + (path.startsWith('/') ? path.slice(1) : path)
 }
 
-// Charge la pochette d'un disque et la redimensionne côté client (canvas) en
-// petite miniature JPEG avant de l'embarquer dans le rapport — sinon chaque
-// pochette (parfois 500 Ko+ telle qu'uploadée) alourdirait démesurément un
-// rapport qui en contient potentiellement des centaines.
-async function loadCoverThumbnail(disc, maxDim = 64) {
-  const path = disc.cover_url || disc.cover_image
+// Charge la pochette d'un disque/jeu et la redimensionne côté client (canvas)
+// en petite miniature JPEG avant de l'embarquer dans le rapport — sinon
+// chaque pochette (parfois 500 Ko+ telle qu'uploadée) alourdirait
+// démesurément un rapport qui en contient potentiellement des centaines.
+async function loadCoverThumbnail(item, maxDim = 64) {
+  const path = item.cover_url || item.cover_image
   if (!path) return null
 
   try {
@@ -495,30 +603,30 @@ async function loadCoverThumbnail(disc, maxDim = 64) {
   }
 }
 
-// Miniatures pour tous les disques du rapport, indexées par id — chargées en
+// Miniatures pour tous les items du rapport, indexées par id — chargées en
 // parallèle une seule fois et réutilisées par les 3 formats qui les intègrent
 // (PDF/XLSX/DOCX ; le CSV est purement tabulaire et ne peut pas en contenir).
 async function buildCoverThumbnails() {
   const entries = await Promise.all(
-    reportRows.value.map(async (disc) => [disc.id, await loadCoverThumbnail(disc)])
+    reportRows.value.map(async (item) => [item.id, await loadCoverThumbnail(item)])
   )
   return Object.fromEntries(entries)
 }
 
 const genreBreakdownCanvas = ref(null)
-const countryBreakdownCanvas = ref(null)
+const breakdown2Canvas = ref(null)
 const evolutionCanvas = ref(null)
 
 let genreBreakdownChart = null
-let countryBreakdownChart = null
+let breakdown2Chart = null
 let evolutionChart = null
 
 function destroyCharts() {
   genreBreakdownChart?.destroy()
-  countryBreakdownChart?.destroy()
+  breakdown2Chart?.destroy()
   evolutionChart?.destroy()
   genreBreakdownChart = null
-  countryBreakdownChart = null
+  breakdown2Chart = null
   evolutionChart = null
 }
 
@@ -544,19 +652,19 @@ async function renderCharts() {
     })
   }
 
-  if (countryBreakdown.value.labels.length && countryBreakdownCanvas.value) {
-    countryBreakdownChart = new ChartJS(countryBreakdownCanvas.value.getContext('2d'), {
+  if (breakdown2.value.labels.length && breakdown2Canvas.value) {
+    breakdown2Chart = new ChartJS(breakdown2Canvas.value.getContext('2d'), {
       type: 'doughnut',
       data: {
-        labels: countryBreakdown.value.labels,
-        datasets: [{ data: countryBreakdown.value.values, backgroundColor: CHART_COLORS, borderWidth: 0 }],
+        labels: breakdown2.value.labels,
+        datasets: [{ data: breakdown2.value.values, backgroundColor: CHART_COLORS, borderWidth: 0 }],
       },
       options: {
         responsive: false,
         animation: false,
         plugins: {
           legend: { position: 'right', labels: { color: '#3a3f33', font: { size: 11 }, boxWidth: 12 } },
-          title: { display: true, text: 'Répartition par pays', color: '#22262a', font: { size: 13, weight: '600' } },
+          title: { display: true, text: cfg.value.breakdown2Title, color: '#22262a', font: { size: 13, weight: '600' } },
         },
       },
     })
@@ -567,7 +675,7 @@ async function renderCharts() {
       type: 'bar',
       data: {
         labels: monthlyAcquisitions.value.labels,
-        datasets: [{ label: 'Disques ajoutés', data: monthlyAcquisitions.value.values, backgroundColor: '#3b82f6' }],
+        datasets: [{ label: `${cfg.value.nounPluralCap} ajoutés`, data: monthlyAcquisitions.value.values, backgroundColor: '#3b82f6' }],
       },
       options: {
         responsive: false,
@@ -586,15 +694,18 @@ async function renderCharts() {
 }
 
 watch(
-  [reportPeriod, reportCustomStart, reportCustomEnd, reportGenre, reportArtist, reportFormat, reportYear, discs],
+  [reportMode, reportPeriod, reportCustomStart, reportCustomEnd, reportGenre, reportSub1, reportSub2, reportYear, discs, games],
   renderCharts,
   { deep: true }
 )
 
-// Le watch ci-dessus (dépendance "discs") déclenche déjà le premier rendu
-// dès que loadDiscs() peuple la liste — un second appel explicite ici
-// entrerait en course avec lui sur les mêmes canvas.
-onMounted(loadDiscs)
+// Le watch ci-dessus (dépendances "discs"/"games") déclenche déjà le premier
+// rendu dès que loadDiscs()/loadGames() peuplent les listes — un second appel
+// explicite ici entrerait en course avec lui sur les mêmes canvas.
+onMounted(() => {
+  loadDiscs()
+  loadGames()
+})
 onBeforeUnmount(destroyCharts)
 
 async function addChartToDoc(doc, chart, x, y, maxWidth, maxHeight) {
@@ -671,17 +782,17 @@ function formatSize(bytes) {
 
 // ✅ Détail des pistes, optionnel — uniquement pour les disques déjà dotés
 // d'une tracklist enregistrée (has_tracks) : pas de fetch Discogs à la volée
-// ici (trop lent/risqué pour une génération de rapport). Partagé par les 4
-// formats de sortie.
+// ici (trop lent/risqué pour une génération de rapport), et sans objet côté
+// jeux (cfg.hasTracks). Partagé par les 4 formats de sortie.
 async function buildTracksByDiscId() {
-  if (!reportIncludeTracklist.value) return {}
-  const discsWithTracks = reportRows.value.filter((disc) => disc.has_tracks)
+  if (!cfg.value.hasTracks || !reportIncludeTracklist.value) return {}
+  const itemsWithTracks = reportRows.value.filter((item) => item.has_tracks)
   const entries = await Promise.all(
-    discsWithTracks.map(async (disc) => {
+    itemsWithTracks.map(async (item) => {
       try {
-        return [disc.id, await fetchTracks(disc.id)]
+        return [item.id, await fetchTracks(item.id)]
       } catch {
-        return [disc.id, []]
+        return [item.id, []]
       }
     })
   )
@@ -706,7 +817,7 @@ async function generatePdfBlob() {
   doc.setTextColor(255, 255, 255)
   doc.setFont(fontFamily, 'bold')
   doc.setFontSize(20)
-  doc.text('Rapport de collection', marginX, 18)
+  doc.text(`Rapport de collection — ${cfg.value.nounPluralCap}`, marginX, 18)
   doc.setFont(fontFamily, 'normal')
   doc.setFontSize(10)
   const generatedAtLabel = new Intl.DateTimeFormat('fr-FR', {
@@ -728,10 +839,10 @@ async function generatePdfBlob() {
   cursorY += 10
 
   const kpis = [
-    { label: 'Nombre de disques', value: String(discCount.value) },
+    { label: `Nombre de ${cfg.value.nounPlural}`, value: String(itemCount.value) },
     { label: 'Valeur de la collection', value: formatCurrencyForPdf(totalValue.value) },
     { label: 'Prix moyen', value: formatCurrencyForPdf(averagePrice.value) },
-    { label: "Nombre d'artistes", value: String(artistCount.value) },
+    { label: cfg.value.kpi4Label, value: String(kpi4Count.value) },
   ]
 
   const cardsPerRow = 4
@@ -767,15 +878,15 @@ async function generatePdfBlob() {
   const pageHeight = doc.internal.pageSize.getHeight()
   const bottomMargin = 15
 
-  if (genreBreakdownChart && countryBreakdownChart) {
+  if (genreBreakdownChart && breakdown2Chart) {
     const pieMaxHeight = pageHeight - cursorY - bottomMargin
     const bottom1 = await addChartToDoc(doc, genreBreakdownChart, marginX, cursorY, halfWidth, pieMaxHeight)
-    const bottom2 = await addChartToDoc(doc, countryBreakdownChart, marginX + halfWidth + 6, cursorY, halfWidth, pieMaxHeight)
+    const bottom2 = await addChartToDoc(doc, breakdown2Chart, marginX + halfWidth + 6, cursorY, halfWidth, pieMaxHeight)
     cursorY = Math.max(bottom1, bottom2) + 8
   } else if (genreBreakdownChart) {
     cursorY = (await addChartToDoc(doc, genreBreakdownChart, marginX, cursorY, pageWidth - marginX * 2, pageHeight - cursorY - bottomMargin)) + 8
-  } else if (countryBreakdownChart) {
-    cursorY = (await addChartToDoc(doc, countryBreakdownChart, marginX, cursorY, pageWidth - marginX * 2, pageHeight - cursorY - bottomMargin)) + 8
+  } else if (breakdown2Chart) {
+    cursorY = (await addChartToDoc(doc, breakdown2Chart, marginX, cursorY, pageWidth - marginX * 2, pageHeight - cursorY - bottomMargin)) + 8
   }
 
   if (evolutionChart) {
@@ -786,7 +897,7 @@ async function generatePdfBlob() {
   doc.setTextColor(40, 46, 38)
   doc.setFont(fontFamily, 'bold')
   doc.setFontSize(13)
-  doc.text('Détail des disques', marginX, 16)
+  doc.text(`Détail des ${cfg.value.nounPlural}`, marginX, 16)
 
   // ✅ Détail des pistes, optionnel — insérées comme lignes indentées en
   // italique juste sous la ligne de leur disque (pas dans un tableau à part).
@@ -794,23 +905,23 @@ async function generatePdfBlob() {
   const coverThumbnails = await buildCoverThumbnails()
 
   const tableBody = []
-  reportRows.value.forEach((disc) => {
+  reportRows.value.forEach((item) => {
     const row = [
       '',
-      disc.title || '—',
-      disc.artist_name || '—',
-      disc.genre_name || '—',
-      disc.format_name || '—',
-      disc.release_year ? String(disc.release_year) : '—',
-      disc.price != null && disc.price !== '' ? formatCurrencyForPdf(disc.price) : '—',
-      formatTableDate(disc.created_at),
+      item.title || '—',
+      item[cfg.value.sub1Field] || '—',
+      item.genre_name || '—',
+      item[cfg.value.sub2Field] || '—',
+      item.release_year ? String(item.release_year) : '—',
+      item.price != null && item.price !== '' ? formatCurrencyForPdf(item.price) : '—',
+      formatTableDate(item.created_at),
     ]
     // autoTable transmet la même référence de tableau à didDrawCell (data.row.raw)
     // — on s'en sert pour retrouver la miniature à dessiner sur cette ligne.
-    row._discId = disc.id
+    row._itemId = item.id
     tableBody.push(row)
 
-    const tracks = tracksByDiscId[disc.id]
+    const tracks = tracksByDiscId[item.id]
     if (tracks && tracks.length > 0) {
       tracks.forEach((track, index) => {
         tableBody.push([
@@ -833,7 +944,7 @@ async function generatePdfBlob() {
 
   autoTable(doc, {
     startY: 22,
-    head: [['Jaquette', 'Titre', 'Artiste', 'Genre', 'Format', 'Année', 'Prix', "Date d'ajout"]],
+    head: [['Jaquette', 'Titre', cfg.value.sub1Label, 'Genre', cfg.value.sub2Label, 'Année', 'Prix', "Date d'ajout"]],
     body: tableBody,
     styles: { font: fontFamily, fontSize: reportFontSize.value, cellPadding: 2.4 },
     headStyles: { fillColor: [59, 130, 246], textColor: 255, halign: 'center' },
@@ -845,8 +956,8 @@ async function generatePdfBlob() {
     margin: { left: marginX, right: marginX },
     didDrawCell: (data) => {
       if (data.section !== 'body' || data.column.index !== 0) return
-      const discId = data.row.raw?._discId
-      const thumb = discId != null ? coverThumbnails[discId] : null
+      const itemId = data.row.raw?._itemId
+      const thumb = itemId != null ? coverThumbnails[itemId] : null
       if (!thumb) return
 
       const scale = Math.min((data.cell.width - 2) / thumb.width, (data.cell.height - 2) / thumb.height)
@@ -889,7 +1000,7 @@ async function generateXlsxBlob() {
 
   const summarySheet = addWorksheet('Résumé')
   summarySheet.columns = [{ width: 28 }, { width: 42 }]
-  summarySheet.addRow(['Rapport de collection']).font = { bold: true, size: 16 }
+  summarySheet.addRow([`Rapport de collection — ${cfg.value.nounPluralCap}`]).font = { bold: true, size: 16 }
   summarySheet.addRow([
     `Généré le ${new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short' }).format(new Date())}`,
   ])
@@ -897,30 +1008,30 @@ async function generateXlsxBlob() {
   summarySheet.addRow(['Critères', criteriaDescription.value])
   summarySheet.addRow([])
   summarySheet.addRow(['Indicateur', 'Valeur']).font = { bold: true }
-  summarySheet.addRow(['Nombre de disques', discCount.value])
+  summarySheet.addRow([`Nombre de ${cfg.value.nounPlural}`, itemCount.value])
   summarySheet.addRow(['Valeur de la collection (€)', Number(totalValue.value.toFixed(2))])
   summarySheet.addRow(['Prix moyen (€)', Number(averagePrice.value.toFixed(2))])
-  summarySheet.addRow(["Nombre d'artistes", artistCount.value])
+  summarySheet.addRow([cfg.value.kpi4Label, kpi4Count.value])
 
   const addBreakdownSheet = (name, columnLabel, breakdown) => {
     const sheet = addWorksheet(name)
-    sheet.columns = [{ header: columnLabel, width: 30 }, { header: 'Nombre de disques', width: 20 }]
+    sheet.columns = [{ header: columnLabel, width: 30 }, { header: `Nombre de ${cfg.value.nounPlural}`, width: 20 }]
     sheet.getRow(1).font = { bold: true }
     breakdown.labels.forEach((label, i) => sheet.addRow([label, breakdown.values[i]]))
   }
   addBreakdownSheet('Répartition genre', 'Genre', genreBreakdown.value)
-  addBreakdownSheet('Répartition pays', 'Pays', countryBreakdown.value)
+  addBreakdownSheet(`Répartition ${cfg.value.breakdown2Label}`, cfg.value.breakdown2Label, breakdown2.value)
 
   const evolutionSheet = addWorksheet('Évolution mensuelle')
-  evolutionSheet.columns = [{ header: 'Mois', width: 15 }, { header: 'Disques ajoutés', width: 20 }]
+  evolutionSheet.columns = [{ header: 'Mois', width: 15 }, { header: `${cfg.value.nounPluralCap} ajoutés`, width: 20 }]
   evolutionSheet.getRow(1).font = { bold: true }
   monthlyAcquisitions.value.labels.forEach((label, i) => evolutionSheet.addRow([label, monthlyAcquisitions.value.values[i]]))
 
   const tracksByDiscId = await buildTracksByDiscId()
   const coverThumbnails = await buildCoverThumbnails()
-  const includeTracks = reportIncludeTracklist.value
+  const includeTracks = cfg.value.hasTracks && reportIncludeTracklist.value
 
-  const detailHeaders = ['Jaquette', 'Titre', 'Artiste', 'Genre', 'Format', 'Année', 'Prix (€)', "Date d'ajout"]
+  const detailHeaders = ['Jaquette', 'Titre', cfg.value.sub1Label, 'Genre', cfg.value.sub2Label, 'Année', 'Prix (€)', "Date d'ajout"]
   if (includeTracks) detailHeaders.push('Pistes')
   const detailSheet = addWorksheet('Détail')
   detailSheet.columns = detailHeaders.map((header) => ({
@@ -929,26 +1040,26 @@ async function generateXlsxBlob() {
   }))
   detailSheet.getRow(1).font = { bold: true }
 
-  reportRows.value.forEach((disc) => {
+  reportRows.value.forEach((item) => {
     const row = [
       '',
-      disc.title || '—',
-      disc.artist_name || '—',
-      disc.genre_name || '—',
-      disc.format_name || '—',
-      disc.release_year || '—',
-      disc.price != null && disc.price !== '' ? Number(parseFloat(disc.price).toFixed(2)) : null,
-      formatTableDate(disc.created_at),
+      item.title || '—',
+      item[cfg.value.sub1Field] || '—',
+      item.genre_name || '—',
+      item[cfg.value.sub2Field] || '—',
+      item.release_year || '—',
+      item.price != null && item.price !== '' ? Number(parseFloat(item.price).toFixed(2)) : null,
+      formatTableDate(item.created_at),
     ]
     if (includeTracks) {
-      const tracks = tracksByDiscId[disc.id] || []
+      const tracks = tracksByDiscId[item.id] || []
       row.push(tracks.map((track, index) => trackLine(track, index)).join('\n'))
     }
     const addedRow = detailSheet.addRow(row)
     addedRow.height = 50
     if (includeTracks) addedRow.getCell(detailHeaders.length).alignment = { wrapText: true, vertical: 'top' }
 
-    const thumb = coverThumbnails[disc.id]
+    const thumb = coverThumbnails[item.id]
     if (thumb) {
       const imageId = workbook.addImage({ base64: thumb.dataUrl, extension: 'jpeg' })
       detailSheet.addImage(imageId, {
@@ -981,7 +1092,7 @@ function dataUrlToBytes(dataUrl) {
 async function generateDocxBlob() {
   const children = []
 
-  children.push(new Paragraph({ text: 'Rapport de collection', heading: HeadingLevel.TITLE }))
+  children.push(new Paragraph({ text: `Rapport de collection — ${cfg.value.nounPluralCap}`, heading: HeadingLevel.TITLE }))
   children.push(
     new Paragraph({
       text: `Généré le ${new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short' }).format(new Date())}`,
@@ -990,10 +1101,10 @@ async function generateDocxBlob() {
   children.push(new Paragraph({ text: `Critères : ${criteriaDescription.value}`, spacing: { after: 200 } }))
 
   const kpiRows = [
-    ['Nombre de disques', String(discCount.value)],
+    [`Nombre de ${cfg.value.nounPlural}`, String(itemCount.value)],
     ['Valeur de la collection', formatCurrency(totalValue.value)],
     ['Prix moyen', formatCurrency(averagePrice.value)],
-    ["Nombre d'artistes", String(artistCount.value)],
+    [cfg.value.kpi4Label, String(kpi4Count.value)],
   ].map(
     ([label, value]) =>
       new TableRow({
@@ -1005,7 +1116,7 @@ async function generateDocxBlob() {
   )
   children.push(new Table({ rows: kpiRows, width: { size: 100, type: WidthType.PERCENTAGE } }))
 
-  for (const chart of [genreBreakdownChart, countryBreakdownChart, evolutionChart]) {
+  for (const chart of [genreBreakdownChart, breakdown2Chart, evolutionChart]) {
     const bytes = chartImageBytes(chart)
     if (!bytes) continue
     children.push(
@@ -1017,10 +1128,10 @@ async function generateDocxBlob() {
   }
 
   children.push(
-    new Paragraph({ text: 'Détail des disques', heading: HeadingLevel.HEADING_1, spacing: { before: 300, after: 120 } })
+    new Paragraph({ text: `Détail des ${cfg.value.nounPlural}`, heading: HeadingLevel.HEADING_1, spacing: { before: 300, after: 120 } })
   )
 
-  const headers = ['Jaquette', 'Titre', 'Artiste', 'Genre', 'Format', 'Année', 'Prix', "Date d'ajout"]
+  const headers = ['Jaquette', 'Titre', cfg.value.sub1Label, 'Genre', cfg.value.sub2Label, 'Année', 'Prix', "Date d'ajout"]
   const headerRow = new TableRow({
     children: headers.map(
       (header) => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: header, bold: true })] })] })
@@ -1030,8 +1141,8 @@ async function generateDocxBlob() {
   const tracksByDiscId = await buildTracksByDiscId()
   const coverThumbnails = await buildCoverThumbnails()
   const bodyRows = []
-  reportRows.value.forEach((disc) => {
-    const thumb = coverThumbnails[disc.id]
+  reportRows.value.forEach((item) => {
+    const thumb = coverThumbnails[item.id]
     const coverCell = new TableCell({
       children: [
         new Paragraph(
@@ -1055,19 +1166,19 @@ async function generateDocxBlob() {
         children: [
           coverCell,
           ...[
-            disc.title || '—',
-            disc.artist_name || '—',
-            disc.genre_name || '—',
-            disc.format_name || '—',
-            disc.release_year ? String(disc.release_year) : '—',
-            disc.price != null && disc.price !== '' ? formatCurrency(disc.price) : '—',
-            formatTableDate(disc.created_at),
+            item.title || '—',
+            item[cfg.value.sub1Field] || '—',
+            item.genre_name || '—',
+            item[cfg.value.sub2Field] || '—',
+            item.release_year ? String(item.release_year) : '—',
+            item.price != null && item.price !== '' ? formatCurrency(item.price) : '—',
+            formatTableDate(item.created_at),
           ].map((text) => new TableCell({ children: [new Paragraph(text)] })),
         ],
       })
     )
 
-    const tracks = tracksByDiscId[disc.id]
+    const tracks = tracksByDiscId[item.id]
     if (tracks && tracks.length > 0) {
       tracks.forEach((track, index) => {
         bodyRows.push(
@@ -1109,27 +1220,27 @@ function csvEscape(value) {
 }
 
 async function generateCsvBlob() {
-  const headers = ['Titre', 'Artiste', 'Genre', 'Format', 'Année', 'Prix', "Date d'ajout"]
+  const headers = ['Titre', cfg.value.sub1Label, 'Genre', cfg.value.sub2Label, 'Année', 'Prix', "Date d'ajout"]
   const lines = [headers.map(csvEscape).join(';')]
 
   const tracksByDiscId = await buildTracksByDiscId()
 
-  reportRows.value.forEach((disc) => {
+  reportRows.value.forEach((item) => {
     lines.push(
       [
-        disc.title || '',
-        disc.artist_name || '',
-        disc.genre_name || '',
-        disc.format_name || '',
-        disc.release_year || '',
-        disc.price != null && disc.price !== '' ? disc.price : '',
-        formatTableDate(disc.created_at),
+        item.title || '',
+        item[cfg.value.sub1Field] || '',
+        item.genre_name || '',
+        item[cfg.value.sub2Field] || '',
+        item.release_year || '',
+        item.price != null && item.price !== '' ? item.price : '',
+        formatTableDate(item.created_at),
       ]
         .map(csvEscape)
         .join(';')
     )
 
-    const tracks = tracksByDiscId[disc.id]
+    const tracks = tracksByDiscId[item.id]
     if (tracks && tracks.length > 0) {
       tracks.forEach((track, index) => {
         lines.push(['', '', '', '', '', '', trackLine(track, index)].map(csvEscape).join(';'))
@@ -1181,11 +1292,34 @@ async function generateReport() {
             <h1>Éditions</h1>
           </div>
         </div>
-        <p class="subtitle">Génère un état complet de ta collection (PDF, Excel, Word ou CSV) : indicateurs, répartitions et détail des disques.</p>
+        <p class="subtitle">Génère un état complet de ta collection de disques ou de jeux (PDF, Excel, Word ou CSV) : indicateurs, répartitions et détail.</p>
       </div>
     </header>
 
     <div class="reports-view">
+      <div class="report-mode-toggle" role="tablist" aria-label="Type de collection">
+        <button
+          type="button"
+          role="tab"
+          class="report-mode-tab"
+          :class="{ active: reportMode === 'discs' }"
+          :aria-selected="reportMode === 'discs'"
+          @click="setReportMode('discs')"
+        >
+          <span class="icon">💿</span> Disques
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="report-mode-tab"
+          :class="{ active: reportMode === 'games' }"
+          :aria-selected="reportMode === 'games'"
+          @click="setReportMode('games')"
+        >
+          <span class="icon">🎮</span> Jeux
+        </button>
+      </div>
+
       <p v-if="loadError" class="form-error">{{ loadError }}</p>
 
       <section class="panel reports-card">
@@ -1232,7 +1366,7 @@ async function generateReport() {
         <div class="panel-header">
           <div>
             <p class="eyebrow">Nouveau rapport</p>
-            <h2>Filtres des disques</h2>
+            <h2>Filtres des {{ cfg.nounPlural }}</h2>
           </div>
           <button class="ghost-btn" type="button" @click="resetFilters">Réinitialiser</button>
         </div>
@@ -1256,18 +1390,18 @@ async function generateReport() {
           </label>
 
           <label class="form-field">
-            <span>Artiste</span>
-            <select v-model="reportArtist">
-              <option value="">Tous les artistes</option>
-              <option v-for="artist in artistOptions" :key="artist" :value="artist">{{ artist }}</option>
+            <span>{{ cfg.sub1Label }}</span>
+            <select v-model="reportSub1">
+              <option value="">{{ cfg.sub1AllLabel }}</option>
+              <option v-for="value in sub1Options" :key="value" :value="value">{{ value }}</option>
             </select>
           </label>
 
           <label class="form-field">
-            <span>Format</span>
-            <select v-model="reportFormat">
-              <option value="">Tous les formats</option>
-              <option v-for="format in formatOptions" :key="format" :value="format">{{ format }}</option>
+            <span>{{ cfg.sub2Label }}</span>
+            <select v-model="reportSub2">
+              <option value="">{{ cfg.sub2AllLabel }}</option>
+              <option v-for="value in sub2Options" :key="value" :value="value">{{ value }}</option>
             </select>
           </label>
 
@@ -1335,14 +1469,14 @@ async function generateReport() {
             </label>
           </template>
 
-          <label class="form-field form-field-checkbox reports-tracklist-field">
+          <label v-if="cfg.hasTracks" class="form-field form-field-checkbox reports-tracklist-field">
             <input v-model="reportIncludeTracklist" type="checkbox" />
             <span>Inclure le détail des pistes</span>
           </label>
         </div>
 
         <p v-if="reportOutputFormat === 'csv'" class="reports-muted reports-format-note">
-          ℹ️ Le format CSV ne contient que le tableau détaillé des disques (indicateurs et graphiques non inclus, format tabulaire).
+          ℹ️ Le format CSV ne contient que le tableau détaillé des {{ cfg.nounPlural }} (indicateurs et graphiques non inclus, format tabulaire).
         </p>
 
         <div class="reports-sort-section">
@@ -1390,13 +1524,13 @@ async function generateReport() {
           </div>
         </div>
 
-        <p v-if="isLoadingDiscs" class="reports-muted">Chargement de la collection…</p>
+        <p v-if="isLoadingItems" class="reports-muted">Chargement de la collection…</p>
 
         <template v-else>
           <div class="reports-kpi-grid">
             <div class="reports-kpi">
-              <p class="eyebrow">Nombre de disques</p>
-              <p class="reports-kpi-value">{{ discCount }}</p>
+              <p class="eyebrow">Nombre de {{ cfg.nounPlural }}</p>
+              <p class="reports-kpi-value">{{ itemCount }}</p>
             </div>
             <div class="reports-kpi">
               <p class="eyebrow">Valeur de la collection</p>
@@ -1407,21 +1541,21 @@ async function generateReport() {
               <p class="reports-kpi-value">{{ formatCurrency(averagePrice) }}</p>
             </div>
             <div class="reports-kpi">
-              <p class="eyebrow">Nombre d'artistes</p>
-              <p class="reports-kpi-value">{{ artistCount }}</p>
+              <p class="eyebrow">{{ cfg.kpi4Label }}</p>
+              <p class="reports-kpi-value">{{ kpi4Count }}</p>
             </div>
           </div>
 
           <div class="reports-charts">
             <canvas ref="genreBreakdownCanvas" width="320" height="220"></canvas>
-            <canvas ref="countryBreakdownCanvas" width="320" height="220"></canvas>
+            <canvas ref="breakdown2Canvas" width="320" height="220"></canvas>
             <canvas ref="evolutionCanvas" width="660" height="220" class="reports-chart-wide"></canvas>
           </div>
 
           <p v-if="generationError" class="form-error">{{ generationError }}</p>
           <p v-if="generationSuccess" class="form-success">{{ generationSuccess }}</p>
 
-          <button class="primary-btn" type="button" :disabled="isGenerating || discCount === 0" @click="generateReport">
+          <button class="primary-btn" type="button" :disabled="isGenerating || itemCount === 0" @click="generateReport">
             {{ isGenerating ? 'Génération…' : `📄 Générer le rapport (${formatLabel(reportOutputFormat)})` }}
           </button>
         </template>
@@ -1454,6 +1588,40 @@ async function generateReport() {
 .reports-view {
   display: grid;
   gap: 0.9rem;
+}
+
+.report-mode-toggle {
+  display: inline-flex;
+  gap: 0.3rem;
+  padding: 0.3rem;
+  border-radius: 999px;
+  background: rgba(var(--tint-rgb), 0.06);
+  border: 1px solid var(--line-soft);
+  width: fit-content;
+}
+
+.report-mode-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1.1rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-soft);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.report-mode-tab:hover {
+  color: var(--text);
+}
+
+.report-mode-tab.active {
+  background: var(--accent);
+  color: white;
 }
 
 .reports-card {
