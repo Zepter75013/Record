@@ -140,6 +140,111 @@ const getImageUrl = (coverPath) => {
   return `${SERVER_BASE_URL}/uploads/${coverPath}`;
 };
 
+// ✅ Aperçu de la jaquette au survol (desktop) / au tap (mobile) — mêmes
+// classes CSS globales que la liste des disques (DiscsView.vue, dernier
+// bloc <style> non scopé) : le DOM est créé hors de l'arbre Vue via
+// document.createElement, donc un style scoped à ce composant ne
+// s'appliquerait pas — on réutilise volontairement les classes déjà
+// globales plutôt que d'en dupliquer une variante ici.
+const showCoverPreview = (game, event) => {
+  if (!game.cover_url) return;
+  document.querySelectorAll('.cover-preview').forEach((preview) => preview.remove());
+  document.querySelectorAll('.cover-preview-overlay').forEach((overlay) => overlay.remove());
+
+  const coverRect = event.currentTarget.getBoundingClientRect();
+  const preview = document.createElement('div');
+  preview.className = 'cover-preview';
+  preview.setAttribute('role', 'tooltip');
+  preview.setAttribute('aria-label', `Aperçu jaquette: ${game.title}`);
+
+  const tooltipWidth = 324;
+  const tooltipHeight = 470;
+  const isMobile = window.innerWidth < 768;
+  let previewLeft, previewTop;
+
+  if (isMobile) {
+    previewLeft = (window.innerWidth - tooltipWidth) / 2 + window.scrollX;
+    previewTop = Math.max(50, (window.innerHeight - tooltipHeight) / 2) + window.scrollY;
+  } else {
+    previewLeft = coverRect.right + window.scrollX + 10;
+    previewTop = coverRect.top + window.scrollY;
+    if (previewLeft + tooltipWidth > window.innerWidth + window.scrollX) {
+      previewLeft = coverRect.left + window.scrollX - tooltipWidth - 10;
+    }
+    if (previewLeft < window.scrollX + 10) {
+      previewLeft = window.scrollX + 10;
+    }
+    const maxTop = window.innerHeight + window.scrollY - tooltipHeight - 20;
+    if (previewTop > maxTop) {
+      previewTop = Math.max(window.scrollY + 10, maxTop);
+    }
+    if (previewTop < window.scrollY + 10) {
+      previewTop = window.scrollY + 10;
+    }
+  }
+
+  preview.style.position = 'absolute';
+  preview.style.top = `${previewTop}px`;
+  preview.style.left = `${previewLeft}px`;
+  preview.style.zIndex = '10000';
+
+  const closeButton = isMobile
+    ? `<button class="cover-preview-close" onclick="this.closest('.cover-preview').remove(); document.querySelector('.cover-preview-overlay')?.remove();" aria-label="Fermer">×</button>`
+    : '';
+
+  preview.innerHTML = `
+    ${closeButton}
+    <div class="cover-preview-content">
+      <div class="cover-preview-image-container">
+        <img
+          src="${getImageUrl(game.cover_url)}"
+          alt="Jaquette: ${game.title}"
+          class="cover-preview-image"
+          onerror="this.style.display='none'"
+        />
+      </div>
+      <div class="cover-preview-stats">
+        <div class="preview-stat-item">
+          <span class="preview-label">Qté :</span>
+          <span class="preview-value">${game.quantity ?? '-'}</span>
+        </div>
+        <div class="preview-stat-item">
+          <span class="preview-label">Genre :</span>
+          <span class="preview-value">${game.genre_name || '-'}</span>
+        </div>
+        <div class="preview-stat-item">
+          <span class="preview-label">Année :</span>
+          <span class="preview-value">${game.release_year || '-'}</span>
+        </div>
+        <div class="preview-stat-item">
+          <span class="preview-label">Éditeur :</span>
+          <span class="preview-value">${game.publisher_name || '-'}</span>
+        </div>
+      </div>
+      <div class="cover-preview-info">
+        <strong>${game.title}</strong>
+        ${game.platform_name ? `<div>${game.platform_name}</div>` : ''}
+      </div>
+    </div>
+  `;
+
+  if (isMobile) {
+    const overlay = document.createElement('div');
+    overlay.className = 'cover-preview-overlay';
+    overlay.onclick = () => {
+      preview.remove();
+      overlay.remove();
+    };
+    document.body.appendChild(overlay);
+  }
+
+  document.body.appendChild(preview);
+};
+
+const hideCoverPreview = () => {
+  document.querySelectorAll('.cover-preview').forEach((preview) => preview.remove());
+};
+
 const openModal = (game = null) => {
   apiError.value = null;
   currentGame.value = game ? { ...game } : null;
@@ -337,8 +442,15 @@ onBeforeUnmount(() => {
               @dblclick="handleRowDoubleClick(game)"
             >
               <td class="cover-column">
-                <img v-if="game.cover_url" :src="getImageUrl(game.cover_url)" :alt="`Jaquette: ${game.title}`" class="cover-thumbnail" />
-                <div v-else class="cover-fallback"><span class="disc-icon">🎮</span></div>
+                <div
+                  class="cover-thumbnail-container"
+                  @mouseenter="showCoverPreview(game, $event)"
+                  @mouseleave="hideCoverPreview"
+                  :aria-label="`Jaquette de ${game.title}`"
+                >
+                  <img v-if="game.cover_url" :src="getImageUrl(game.cover_url)" :alt="`Jaquette: ${game.title}`" class="cover-thumbnail" />
+                  <div v-else class="cover-fallback"><span class="disc-icon">🎮</span></div>
+                </div>
               </td>
               <td class="title-column">{{ game.title || '-' }}</td>
               <td class="platform-column">{{ game.platform_name || '-' }}</td>
@@ -369,7 +481,7 @@ onBeforeUnmount(() => {
           :class="{ 'selected-row': selectedRowId === game.id }"
         >
           <div class="card-main">
-            <div class="card-cover" @click="handleRowClick(game)">
+            <div class="card-cover" @click.stop="showCoverPreview(game, $event)">
               <img v-if="game.cover_url" :src="getImageUrl(game.cover_url)" :alt="`Jaquette: ${game.title}`" class="cover-thumbnail" />
               <div v-else class="cover-fallback"><span class="disc-icon">🎮</span></div>
             </div>
@@ -511,8 +623,20 @@ onBeforeUnmount(() => {
 .header-text { flex-grow: 1; text-align: center; }
 .sort-icon { margin-left: 8px; }
 
-.cover-thumbnail { width: 42px; height: 42px; object-fit: cover; border-radius: 6px; display: block; margin: 0 auto; }
-.cover-fallback { width: 42px; height: 42px; border-radius: 6px; background: rgba(var(--tint-rgb), 0.08); display: flex; align-items: center; justify-content: center; margin: 0 auto; }
+.cover-thumbnail-container {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  position: relative;
+  cursor: pointer;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.cover-thumbnail { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; display: block; margin: 0 auto; }
+.cover-fallback { width: 100%; height: 100%; border-radius: 6px; background: rgba(var(--tint-rgb), 0.08); display: flex; align-items: center; justify-content: center; margin: 0 auto; }
 .disc-icon { font-size: 1.2em; }
 
 .empty-table-message-standalone { text-align: center; padding: 30px; color: var(--text-dim); font-style: italic; border: 2px dashed var(--line); border-radius: 12px; }
