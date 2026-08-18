@@ -1117,8 +1117,8 @@ watch(() => route.path, async (newPath) => {
   justify-content: space-between;
   gap: 0.4rem;
   width: 100%;
-  margin: 0.5rem 0 0.05rem;
-  padding: 0.15rem 0.85rem;
+  margin: 0.6rem 0 0.1rem;
+  padding: 0.3rem 0.85rem;
   background: none;
   border: none;
   cursor: pointer;
@@ -1130,17 +1130,19 @@ watch(() => route.path, async (newPath) => {
 }
 
 .nav-section-toggle .nav-group-chevron {
-  color: rgba(var(--tint-rgb), 0.35);
+  width: 16px;
+  height: 16px;
+  color: rgba(var(--tint-rgb), 0.45);
 }
 
 .nav-section-label {
   margin: 0;
   padding: 0;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-size: 0.98rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: var(--text-dim);
+  color: var(--text);
 }
 
 /* Le libellé "Général" est un <p> autonome (pas de bouton repliable comme
@@ -1148,8 +1150,8 @@ watch(() => route.path, async (newPath) => {
    .nav-section-toggle et se retrouve visuellement plus proche du groupe
    précédent que les deux autres en-têtes de section. */
 p.nav-section-label {
-  margin: 0.5rem 0 0.05rem;
-  padding: 0.15rem 0.85rem;
+  margin: 0.6rem 0 0.1rem;
+  padding: 0.3rem 0.85rem;
 }
 
 .nav-section-divider {
