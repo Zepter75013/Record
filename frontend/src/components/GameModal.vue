@@ -12,7 +12,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'game-saved', 'lookups-changed'])
 
-const { apiFetch } = useApi()
+const { apiFetch, upload } = useApi()
 
 const isEditing = computed(() => !!props.gameData?.id)
 const showSearchStep = ref(true)
@@ -69,6 +69,10 @@ const searchMessage = ref('')
 const selectedResult = ref(null)
 const isBarcodeScannerOpen = ref(false)
 const fileImportInput = ref(null)
+
+// === Gestion de la jaquette (modifier / supprimer / upload) ===
+const fileInput = ref(null)
+const uploadPreview = ref({ url: null, file: null, size: 0, width: 0, height: 0, loading: false })
 
 function resetSearchStep() {
   barcode.value = ''
@@ -207,6 +211,13 @@ async function selectResult(result) {
 }
 
 function skipToManualEntry() {
+  if (isEditing.value) {
+    // Recherche relancée depuis l'édition (researchOnWeb) : on revient au
+    // formulaire tel quel, sans perdre les données déjà saisies —
+    // contrairement à la création, où le formulaire démarre vide.
+    showSearchStep.value = false
+    return
+  }
   formData.value = defaultFormData()
   formData.value.barcode = barcode.value || ''
   showSearchStep.value = false
@@ -214,6 +225,81 @@ function skipToManualEntry() {
 
 function backToSearch() {
   showSearchStep.value = true
+}
+
+// Permet, en édition, de relancer une recherche RAWG pour remplacer la
+// jaquette (ou d'autres infos) sans perdre les données déjà saisies dans le
+// formulaire — même principe que researchOnDiscogs côté disques.
+function researchOnWeb() {
+  searchResults.value = []
+  searchMessage.value = ''
+  barcode.value = formData.value.barcode || ''
+  searchTitle.value = formData.value.title || ''
+  showSearchStep.value = true
+}
+
+function openFilePicker() {
+  fileInput.value?.click()
+}
+
+function handleFileUpload(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+  if (!validTypes.includes(file.type) || file.size > 5 * 1024 * 1024) return
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const img = new Image()
+    img.onload = () => {
+      Object.assign(uploadPreview.value, {
+        url: e.target.result,
+        file,
+        size: file.size,
+        width: img.width,
+        height: img.height,
+      })
+    }
+    img.src = e.target.result
+  }
+  reader.readAsDataURL(file)
+}
+
+function cancelUpload() {
+  uploadPreview.value = { url: null, file: null, size: 0, width: 0, height: 0, loading: false }
+}
+
+async function confirmUpload() {
+  if (!uploadPreview.value.file) return
+  uploadPreview.value.loading = true
+  try {
+    const fd = new FormData()
+    fd.append('cover', uploadPreview.value.file)
+    fd.append('title', formData.value.title || 'Jeu')
+    const platformName = platforms.value.find((p) => p.id === Number(formData.value.platform_id))?.name
+    fd.append('artist', platformName || 'Jeu')
+    const res = await upload('/upload-cover', fd)
+    if (res.filePath) {
+      formData.value.cover_image = res.filePath
+      cancelUpload()
+    }
+  } catch (error) {
+    console.error('Erreur upload jaquette:', error)
+  } finally {
+    uploadPreview.value.loading = false
+  }
+}
+
+function removeCover() {
+  formData.value.cover_image = ''
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return '0 Ko'
+  const k = 1024
+  const sizes = ['o', 'Ko', 'Mo']
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), 2)
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`
 }
 
 // === Création rapide plateforme / genre / éditeur ===
@@ -279,8 +365,12 @@ async function handleSubmit() {
   if (!isEditing.value) {
     payload.cover_image = formData.value.cover_image || null
     payload.rawg_id = formData.value.rawg_id || null
-  } else if (formData.value.cover_image) {
-    payload.cover_image = formData.value.cover_image
+  } else {
+    // Toujours envoyer le champ en édition (jamais l'omettre) : une chaîne
+    // vide signale explicitement une suppression au backend, qu'il y ait eu
+    // ou non une jaquette avant — omettre le champ serait interprété comme
+    // "aucun changement demandé" et laisserait l'ancienne jaquette en place.
+    payload.cover_image = formData.value.cover_image || ''
   }
 
   isSaving.value = true
@@ -378,8 +468,40 @@ const displayedError = computed(() => localApiError.value || props.apiError)
 
       <!-- === Étape formulaire === -->
       <form v-else class="game-form" @submit.prevent="handleSubmit">
-        <div v-if="formData.cover_image" class="game-cover-preview">
-          <img :src="formData.cover_image" alt="Jaquette" />
+        <div class="game-cover-container">
+          <img v-if="formData.cover_image" :src="formData.cover_image" alt="Jaquette" class="game-cover-preview-img" />
+          <div v-else class="game-cover-preview-img game-cover-placeholder">🎮</div>
+          <div class="game-cover-actions">
+            <button type="button" @click="openFilePicker" class="game-cover-action-btn" title="Changer la jaquette">📁</button>
+            <button type="button" @click="researchOnWeb" class="game-cover-action-btn" title="Rechercher une jaquette sur le web">🔍</button>
+            <button
+              type="button"
+              v-if="formData.cover_image"
+              @click="removeCover"
+              class="game-cover-action-btn remove"
+              title="Supprimer la jaquette"
+            >
+              🗑️
+            </button>
+          </div>
+        </div>
+        <input ref="fileInput" type="file" accept="image/*" style="display: none" @change="handleFileUpload" />
+
+        <div v-if="uploadPreview.url" class="game-upload-preview">
+          <div class="game-upload-preview-header">
+            <h5>📷 Aperçu de l'image</h5>
+            <button type="button" class="ghost-btn" @click="cancelUpload">❌ Annuler</button>
+          </div>
+          <div class="game-upload-preview-content">
+            <img :src="uploadPreview.url" alt="Aperçu upload" class="game-upload-preview-img" />
+            <div class="game-upload-preview-info">
+              <span>{{ formatFileSize(uploadPreview.size) }} · {{ uploadPreview.width }}×{{ uploadPreview.height }}px</span>
+              <button type="button" class="primary-btn" @click="confirmUpload" :disabled="uploadPreview.loading">
+                <span v-if="uploadPreview.loading" class="btn-spinner"></span>
+                <span v-else>✅ Utiliser cette image</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <label class="form-field">
@@ -656,17 +778,111 @@ const displayedError = computed(() => localApiError.value || props.apiError)
   margin-top: 1.2rem;
 }
 
-.game-cover-preview {
+.game-cover-container {
+  position: relative;
   display: flex;
   justify-content: center;
   margin-bottom: 1rem;
 }
 
-.game-cover-preview img {
-  max-width: 140px;
-  max-height: 140px;
+.game-cover-preview-img {
+  width: 140px;
+  height: 140px;
   border-radius: 10px;
   object-fit: cover;
+}
+
+.game-cover-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(var(--tint-rgb), 0.06);
+  border: 1px dashed var(--line);
+  font-size: 2.2em;
+  color: var(--text-dim);
+}
+
+.game-cover-actions {
+  position: absolute;
+  top: 4px;
+  right: calc(50% - 70px + 4px);
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.game-cover-container:hover .game-cover-actions,
+.game-cover-container:focus-within .game-cover-actions {
+  opacity: 1;
+}
+
+.game-cover-action-btn {
+  background: rgba(0, 0, 0, 0.7);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 0.95em;
+  transition: all 0.2s;
+}
+
+.game-cover-action-btn:hover {
+  background: rgba(0, 0, 0, 0.9);
+  transform: scale(1.08);
+}
+
+.game-cover-action-btn.remove {
+  background: rgba(220, 53, 69, 0.75);
+}
+
+.game-cover-action-btn.remove:hover {
+  background: rgba(220, 53, 69, 0.95);
+}
+
+.game-upload-preview {
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: 0.8rem;
+  margin-bottom: 1rem;
+  background: rgba(var(--tint-rgb), 0.03);
+}
+
+.game-upload-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.game-upload-preview-header h5 {
+  margin: 0;
+  font-size: 0.9em;
+  color: var(--text);
+}
+
+.game-upload-preview-content {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.game-upload-preview-img {
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.game-upload-preview-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.85em;
+  color: var(--text-soft);
 }
 
 .game-form-grid {

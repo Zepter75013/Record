@@ -397,6 +397,18 @@ func (s *GameService) GetGameByID(ctx context.Context, id int) (*games.GameWithD
 	return s.repo.FindByID(ctx, id)
 }
 
+// removeCoverFile supprime du disque le fichier pointé par coverURL, s'il
+// s'agit bien d'un chemin local uploadé (jamais une URL RAWG externe).
+func (s *GameService) removeCoverFile(coverURL *string) {
+	if coverURL == nil || *coverURL == "" || !strings.HasPrefix(*coverURL, "/uploads/") {
+		return
+	}
+	diskPath := filepath.Join(s.uploadsDir, strings.TrimPrefix(*coverURL, "/uploads/"))
+	if err := os.Remove(diskPath); err != nil && !os.IsNotExist(err) {
+		fmt.Printf("⚠️ Erreur suppression jaquette jeu: %v\n", err)
+	}
+}
+
 func (s *GameService) UpdateGame(
 	ctx context.Context,
 	id int,
@@ -411,6 +423,42 @@ func (s *GameService) UpdateGame(
 	quantity *int,
 	coverImage *string,
 ) (*games.GameWithDetails, error) {
+	currentGame, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if currentGame == nil {
+		return nil, fmt.Errorf("jeu introuvable")
+	}
+
+	// Même logique que UpdateDisc (disc_service.go) : nil = pas de
+	// changement demandé, "" = suppression explicite, URL http = nouvelle
+	// recherche web à télécharger, sinon = chemin local déjà uploadé via
+	// /api/upload-cover. Dans tous les cas où la jaquette change, l'ancien
+	// fichier local est nettoyé pour ne pas laisser d'orphelins sur disque.
+	var finalCoverURL *string
+	switch {
+	case coverImage == nil:
+		finalCoverURL = currentGame.CoverURL
+	case *coverImage == "":
+		s.removeCoverFile(currentGame.CoverURL)
+		finalCoverURL = nil
+	case strings.HasPrefix(*coverImage, "http"):
+		coverPath, err := s.downloadCoverWithName(*coverImage, title, id)
+		if err != nil || coverPath == "" {
+			fmt.Printf("❌ Échec téléchargement jaquette jeu: %v\n", err)
+			finalCoverURL = currentGame.CoverURL
+		} else {
+			s.removeCoverFile(currentGame.CoverURL)
+			finalCoverURL = &coverPath
+		}
+	default:
+		if currentGame.CoverURL == nil || *currentGame.CoverURL != *coverImage {
+			s.removeCoverFile(currentGame.CoverURL)
+		}
+		finalCoverURL = coverImage
+	}
+
 	idCopy := id
 	game := &games.Game{
 		ID:          &idCopy,
@@ -423,7 +471,7 @@ func (s *GameService) UpdateGame(
 		Notes:       notes,
 		Price:       price,
 		Quantity:    quantity,
-		CoverURL:    coverImage,
+		CoverURL:    finalCoverURL,
 	}
 
 	if err := s.repo.Update(ctx, game); err != nil {
@@ -434,6 +482,10 @@ func (s *GameService) UpdateGame(
 }
 
 func (s *GameService) DeleteGame(ctx context.Context, id int) error {
+	game, err := s.repo.FindByID(ctx, id)
+	if err == nil && game != nil {
+		s.removeCoverFile(game.CoverURL)
+	}
 	return s.repo.Delete(ctx, id)
 }
 
