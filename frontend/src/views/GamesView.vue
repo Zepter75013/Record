@@ -1,8 +1,7 @@
 <script setup>
 import GameModal from '@/components/GameModal.vue';
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useApi } from '@/composables/useApi';
-import { formatCurrency } from '@/utils/format';
 
 const { apiFetch } = useApi();
 const games = ref([]);
@@ -29,7 +28,11 @@ const filterYear = ref('');
 const showFilters = ref(true);
 
 const sortKey = ref('title');
-const sortOrder = ref(1);
+const sortOrder = ref('asc');
+
+const currentPage = ref(1);
+const itemsPerPage = ref(15);
+const pageInputValue = ref('');
 
 const fetchGames = async () => {
   isLoading.value = true;
@@ -99,38 +102,76 @@ const filteredGames = computed(() => {
 
 const sortBy = (key) => {
   if (sortKey.value === key) {
-    sortOrder.value *= -1;
+    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
   } else {
     sortKey.value = key;
-    sortOrder.value = 1;
+    sortOrder.value = 'asc';
   }
 };
 
 const getSortIcon = (key) => {
-  if (sortKey.value !== key) return '<span style="font-weight:700">A-Z</span>';
-  return sortOrder.value === 1 ? '▲' : '▼';
+  if (sortKey.value !== key) return '<span style="font-weight:700">👆 👇</span>';
+  return sortOrder.value === 'asc' ? '👆' : '👇';
 };
 
 const sortedGames = computed(() => {
+  const order = sortOrder.value === 'asc' ? 1 : -1;
   return [...filteredGames.value].sort((a, b) => {
     let aVal = a[sortKey.value];
     let bVal = b[sortKey.value];
-    if (sortKey.value === 'release_year' || sortKey.value === 'price') {
+    if (sortKey.value === 'release_year') {
       aVal = Number(aVal) || 0;
       bVal = Number(bVal) || 0;
-      return (aVal - bVal) * sortOrder.value;
+      return (aVal - bVal) * order;
     }
     aVal = String(aVal || '').toLowerCase();
     bVal = String(bVal || '').toLowerCase();
-    if (aVal < bVal) return -1 * sortOrder.value;
-    if (aVal > bVal) return 1 * sortOrder.value;
+    if (aVal < bVal) return -1 * order;
+    if (aVal > bVal) return 1 * order;
     return 0;
   });
 });
 
-const totalValue = computed(() =>
-  games.value.reduce((sum, g) => sum + (g.price != null ? parseFloat(g.price) : 0), 0)
-);
+// ✅ Pagination côté client — même principe que DiscsView.vue (15 par page)
+const totalItems = computed(() => sortedGames.value.length);
+const totalPages = computed(() => Math.ceil(totalItems.value / itemsPerPage.value) || 1);
+
+const visiblePages = computed(() => {
+  const pages = [];
+  const maxVisible = 5;
+  let start = Math.max(1, currentPage.value - Math.floor(maxVisible / 2));
+  let end = Math.min(totalPages.value, start + maxVisible - 1);
+  if (end - start + 1 < maxVisible) {
+    start = Math.max(1, end - maxVisible + 1);
+  }
+  for (let i = start; i <= end; i += 1) pages.push(i);
+  return pages;
+});
+
+const paginatedGames = computed(() => {
+  const startIndex = (currentPage.value - 1) * itemsPerPage.value;
+  return sortedGames.value.slice(startIndex, startIndex + itemsPerPage.value);
+});
+
+const goToPage = (page) => {
+  if (page >= 1 && page <= totalPages.value) currentPage.value = page;
+};
+const goToFirstPage = () => goToPage(1);
+const goToLastPage = () => goToPage(totalPages.value);
+const goToInputPage = () => {
+  const page = parseInt(pageInputValue.value, 10);
+  if (!isNaN(page) && page >= 1 && page <= totalPages.value) {
+    goToPage(page);
+  }
+  pageInputValue.value = '';
+};
+const handlePageInputEnter = (event) => {
+  if (event.key === 'Enter') goToInputPage();
+};
+
+watch([searchQuery, filterPlatform, filterGenre, filterYear], () => {
+  currentPage.value = 1;
+});
 
 const getImageUrl = (coverPath) => {
   if (!coverPath) return '';
@@ -420,12 +461,6 @@ onBeforeUnmount(() => {
                   <span class="sort-icon" v-html="getSortIcon('release_year')"></span>
                 </div>
               </th>
-              <th class="price-column sortable" @click="sortBy('price')">
-                <div class="sortable-content">
-                  <span class="header-text">PRIX</span>
-                  <span class="sort-icon" v-html="getSortIcon('price')"></span>
-                </div>
-              </th>
               <th class="actions-column">
                 <div class="sortable-content">
                   <span class="header-text">ACTIONS</span>
@@ -435,7 +470,7 @@ onBeforeUnmount(() => {
           </thead>
           <tbody>
             <tr
-              v-for="(game, index) in sortedGames"
+              v-for="(game, index) in paginatedGames"
               :key="game.id"
               :class="{ 'odd-row': index % 2 === 0, 'even-row': index % 2 !== 0, 'selected-row': selectedRowId === game.id }"
               @click="handleRowClick(game)"
@@ -457,7 +492,6 @@ onBeforeUnmount(() => {
               <td class="genre-column">{{ game.genre_name || '-' }}</td>
               <td class="publisher-column">{{ game.publisher_name || '-' }}</td>
               <td class="year-column">{{ game.release_year || '-' }}</td>
-              <td class="price-column">{{ game.price != null ? formatCurrency(game.price) : '-' }}</td>
               <td class="actions-column">
                 <div class="action-buttons-container">
                   <button @click.stop="openModal(game)" class="icon-action-btn edit-button">
@@ -475,7 +509,7 @@ onBeforeUnmount(() => {
 
       <div v-else class="cards-container">
         <div
-          v-for="game in sortedGames"
+          v-for="game in paginatedGames"
           :key="game.id"
           class="card-item"
           :class="{ 'selected-row': selectedRowId === game.id }"
@@ -489,8 +523,7 @@ onBeforeUnmount(() => {
               <div class="card-title">{{ game.title || '-' }}</div>
               <div class="card-platform">{{ game.platform_name || '-' }}</div>
               <div class="card-details">
-                <span v-if="game.release_year">{{ game.release_year }} • </span>
-                <span>{{ game.price != null ? formatCurrency(game.price) : '-' }}</span>
+                <span>{{ game.release_year || '-' }}</span>
               </div>
             </div>
           </div>
@@ -512,7 +545,89 @@ onBeforeUnmount(() => {
       </div>
       <div v-else-if="!isLoading" class="table-summary-wrapper-standalone">
         <div class="summary-box">
-          {{ sortedGames.length }} jeu{{ sortedGames.length > 1 ? 'x' : '' }} · Valeur totale : {{ formatCurrency(totalValue) }}
+          {{ totalItems }} jeu{{ totalItems > 1 ? 'x' : '' }}
+        </div>
+      </div>
+
+      <div
+        v-if="totalPages > 1 && paginatedGames.length > 0"
+        class="pagination-bottom"
+        role="navigation"
+        aria-label="Pagination"
+      >
+        <div class="pagination-controls">
+          <button
+            @click="goToFirstPage"
+            :disabled="currentPage <= 1 || isLoading"
+            class="pagination-button pagination-first"
+            aria-label="Première page"
+            title="Première page"
+          >
+            ⏮️
+          </button>
+          <button
+            @click="goToPage(currentPage - 1)"
+            :disabled="currentPage <= 1 || isLoading"
+            class="pagination-button"
+            aria-label="Page précédente"
+          >
+            ‹ Précédent
+          </button>
+          <span class="pagination-numbers">
+            <button
+              v-for="page in visiblePages"
+              :key="page"
+              @click="goToPage(page)"
+              :class="{ active: currentPage === page }"
+              class="page-button"
+              :aria-label="`Page ${page}`"
+              :aria-current="currentPage === page ? 'page' : null"
+              :disabled="isLoading"
+            >
+              {{ page }}
+            </button>
+          </span>
+          <button
+            @click="goToPage(currentPage + 1)"
+            :disabled="currentPage >= totalPages || isLoading"
+            class="pagination-button"
+            aria-label="Page suivante"
+          >
+            Suivant ›
+          </button>
+          <button
+            @click="goToLastPage"
+            :disabled="currentPage >= totalPages || isLoading"
+            class="pagination-button pagination-last"
+            aria-label="Dernière page"
+            title="Dernière page"
+          >
+            ⏭️
+          </button>
+        </div>
+        <div class="pagination-goto">
+          <label for="goto-page-games" class="goto-label">Aller à la page :</label>
+          <input
+            id="goto-page-games"
+            v-model="pageInputValue"
+            type="number"
+            min="1"
+            :max="totalPages"
+            class="goto-input"
+            placeholder="#"
+            @keydown.enter="handlePageInputEnter"
+            :disabled="isLoading"
+            aria-label="Numéro de page"
+          />
+          <button
+            @click="goToInputPage"
+            :disabled="isLoading || !pageInputValue"
+            class="goto-button"
+            aria-label="Aller à la page"
+          >
+            Aller
+          </button>
+          <span class="total-pages-info">sur {{ totalPages }}</span>
         </div>
       </div>
     </div>
@@ -613,7 +728,7 @@ onBeforeUnmount(() => {
 .data-table td { padding: 6px 15px; border-bottom: 1px solid var(--line-soft); text-align: left; font-size: 0.85em; height: 40px; color: var(--text); }
 .data-table .cover-column { width: 60px; text-align: center; }
 .data-table .actions-column { width: 90px; text-align: center; }
-.data-table .price-column, .data-table .year-column { text-align: right; }
+.data-table .year-column { text-align: right; }
 .action-buttons-container { display: flex; gap: 8px; justify-content: center; }
 .edit-button .icon { color: var(--accent-soft); }
 .delete-button .icon { color: var(--negative-text); }
@@ -678,5 +793,149 @@ onBeforeUnmount(() => {
   padding: 16px;
   margin-bottom: 20px;
   color: var(--text);
+}
+
+/* ✅ PAGINATION — même style que DiscsView.vue (var(--accent) à la place de
+   var(--color-secondary), qui n'existe que localement dans DiscsView.vue) */
+.pagination-bottom {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px 0;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pagination-button {
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  background: var(--bg-elevated);
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 600;
+  min-height: 36px;
+}
+.pagination-button:hover:not(:disabled) {
+  background: rgba(var(--tint-rgb), 0.08);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.pagination-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.pagination-numbers {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.page-button {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  background: var(--bg-elevated);
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+  min-width: 40px;
+  transition: all 0.2s ease;
+  font-weight: 600;
+}
+.page-button:hover:not(:disabled) {
+  background: rgba(var(--tint-rgb), 0.08);
+  border-color: var(--accent);
+}
+.page-button.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.page-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.pagination-first,
+.pagination-last {
+  min-width: 40px;
+  font-size: 1.2em;
+  padding: 6px 12px;
+}
+.pagination-goto {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background: rgba(var(--tint-rgb), 0.04);
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+.goto-label {
+  font-size: 0.9em;
+  color: var(--text-soft);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.goto-input {
+  width: 60px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  background: var(--bg-elevated);
+  color: var(--text);
+  border-radius: 4px;
+  text-align: center;
+  font-size: 0.95em;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+.goto-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.15);
+}
+.goto-input:disabled {
+  background: rgba(var(--tint-rgb), 0.02);
+  cursor: not-allowed;
+}
+.goto-input::-webkit-inner-spin-button,
+.goto-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.goto-input[type=number] {
+  -moz-appearance: textfield;
+}
+.goto-button {
+  padding: 6px 16px;
+  background: var(--accent-soft);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9em;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.goto-button:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(var(--tint-rgb), 0.15);
+}
+.goto-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.total-pages-info {
+  font-size: 0.9em;
+  color: var(--text-dim);
+  font-weight: 600;
+  white-space: nowrap;
 }
 </style>

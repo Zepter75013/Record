@@ -393,11 +393,37 @@ function closeModal() {
   emit('close')
 }
 
+// Évite la fermeture accidentelle de la modale quand l'utilisateur
+// sélectionne du texte (ex: pour le copier) et que le relâchement de la
+// souris finit hors de la carte : sans cette garde, @click.self suffisait
+// à fermer même si le mousedown avait démarré à l'intérieur.
+const overlayMouseDownTarget = ref(null)
+const onOverlayMouseDown = (e) => {
+  overlayMouseDownTarget.value = e.target
+}
+const onOverlayClick = (e) => {
+  if (e.target === e.currentTarget && overlayMouseDownTarget.value === e.currentTarget) {
+    closeModal()
+  }
+  overlayMouseDownTarget.value = null
+}
+
+const quickCreateOverlayMouseDownTarget = ref(null)
+const onQuickCreateOverlayMouseDown = (e) => {
+  quickCreateOverlayMouseDownTarget.value = e.target
+}
+const onQuickCreateOverlayClick = (e) => {
+  if (e.target === e.currentTarget && quickCreateOverlayMouseDownTarget.value === e.currentTarget) {
+    closeQuickCreate()
+  }
+  quickCreateOverlayMouseDownTarget.value = null
+}
+
 const displayedError = computed(() => localApiError.value || props.apiError)
 </script>
 
 <template>
-  <div v-if="isOpen" class="modal-overlay" @click.self="closeModal">
+  <div v-if="isOpen" class="modal-overlay" @mousedown="onOverlayMouseDown" @click="onOverlayClick">
     <section class="modal-card game-modal-card" role="dialog" aria-modal="true" aria-labelledby="game-modal-title">
       <div class="modal-header">
         <div>
@@ -570,11 +596,6 @@ const displayedError = computed(() => localApiError.value || props.apiError)
           </label>
 
           <label class="form-field">
-            <span>Prix (€)</span>
-            <input v-model="formData.price" type="number" step="0.01" min="0" placeholder="0.00" :disabled="isSaving" />
-          </label>
-
-          <label class="form-field">
             <span>Quantité</span>
             <input v-model="formData.quantity" type="number" min="1" :disabled="isSaving" />
           </label>
@@ -600,7 +621,12 @@ const displayedError = computed(() => localApiError.value || props.apiError)
 
     <!-- === Sous-modale de création rapide (plateforme/genre/éditeur) === -->
     <Teleport to="body">
-      <div v-if="quickCreate.type" class="modal-overlay" @click.self="closeQuickCreate">
+      <div
+        v-if="quickCreate.type"
+        class="modal-overlay"
+        @mousedown="onQuickCreateOverlayMouseDown"
+        @click="onQuickCreateOverlayClick"
+      >
         <section class="modal-card quick-create-card" role="dialog" aria-modal="true">
           <div class="modal-header">
             <h2>Créer {{ quickCreateLabel }}</h2>
