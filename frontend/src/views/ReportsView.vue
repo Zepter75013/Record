@@ -944,6 +944,11 @@ async function generatePdfBlob() {
 
   autoTable(doc, {
     startY: 22,
+    // Empêche autoTable de couper une ligne entre deux pages : sans ça, une
+    // ligne dont le texte tient de justesse sur la page en cours peut voir
+    // sa jaquette déborder et se redessiner en fragment orphelin en haut de
+    // la page suivante (observé avec FIFA 17 : jaquette dupliquée sans titre).
+    rowPageBreak: 'avoid',
     head: [['Jaquette', 'Titre', cfg.value.sub1Label, 'Genre', cfg.value.sub2Label, 'Année', 'Prix', "Date d'ajout"]],
     body: tableBody,
     styles: { font: fontFamily, fontSize: reportFontSize.value, cellPadding: 2.4 },
