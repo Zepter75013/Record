@@ -726,10 +726,10 @@ onBeforeUnmount(() => {
 .data-table thead th { padding: 12px 15px; background: var(--table-header-color); color: white; text-align: center; height: 50px; position: relative; }
 .data-table thead th::after { content: ''; position: absolute; right: 0; top: 0; height: 100%; width: 1px; background-color: rgba(255, 255, 255, 0.2); }
 .data-table thead th:last-child::after { display: none; }
-.data-table tbody tr { transition: all 0.2s ease; cursor: pointer; height: 40px; }
+.data-table tbody tr { transition: all 0.2s ease; cursor: pointer; height: 58px; }
 .data-table tbody tr:hover { background: rgba(var(--tint-rgb), 0.06); }
 .data-table tbody tr.selected-row { background: rgba(59, 130, 246, 0.12) !important; border-left: 4px solid var(--accent) !important; }
-.data-table td { padding: 6px 15px; border-bottom: 1px solid var(--line-soft); text-align: left; font-size: 0.85em; height: 40px; color: var(--text); }
+.data-table td { padding: 6px 15px; border-bottom: 1px solid var(--line-soft); text-align: left; font-size: 0.85em; height: 58px; color: var(--text); }
 .data-table .cover-column { width: 60px; text-align: center; }
 .data-table .actions-column { width: 90px; text-align: center; }
 .data-table .year-column { text-align: right; }
@@ -743,8 +743,12 @@ onBeforeUnmount(() => {
 .sort-icon { margin-left: 8px; }
 
 .cover-thumbnail-container {
+  /* Format portrait (~0.8) plutôt que carré : les jaquettes de jeux
+     (box art) sont le plus souvent verticales, contrairement aux
+     pochettes de disques (carrées) — un cadre carré coupait le haut et
+     le bas de l'image. */
   width: 42px;
-  height: 42px;
+  height: 52px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -767,7 +771,7 @@ onBeforeUnmount(() => {
   .card-item.selected-row { border-left-color: var(--accent-soft); background: rgba(59, 130, 246, 0.08); }
   .card-main { display: flex; gap: 12px; padding: 14px; }
   .card-cover { flex-shrink: 0; cursor: pointer; }
-  .card-cover .cover-thumbnail, .card-cover .cover-fallback { width: 56px; height: 56px; }
+  .card-cover .cover-thumbnail, .card-cover .cover-fallback { width: 56px; height: 70px; }
   .card-content { flex: 1; min-width: 0; cursor: pointer; }
   .card-title { font-weight: 700; color: var(--text); }
   .card-platform { color: var(--text-soft); font-size: 0.9em; margin-top: 2px; }

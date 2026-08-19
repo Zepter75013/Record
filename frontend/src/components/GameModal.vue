@@ -812,8 +812,11 @@ const displayedError = computed(() => localApiError.value || props.apiError)
 }
 
 .game-cover-preview-img {
+  /* Format portrait (~0.8), comme les vignettes de GamesView.vue : les
+     jaquettes de jeux (box art) sont le plus souvent verticales, pas
+     carrées comme les pochettes de disques. */
   width: 140px;
-  height: 140px;
+  height: 175px;
   border-radius: 10px;
   object-fit: cover;
 }
