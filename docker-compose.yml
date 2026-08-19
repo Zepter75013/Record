@@ -53,6 +53,7 @@ services:
       - "8081:8080"
     volumes:
       - ./uploads/covers:/app/uploads/covers
+      - ./uploads/avatars:/app/uploads/avatars
       - ./backups:/app/backups
       - ./reports:/app/reports
     depends_on:

@@ -22,8 +22,9 @@ type LoginRequest struct {
 type LoginResponse struct {
 	Token string `json:"token"`
 	User  struct {
-		ID    uint   `json:"id"`
-		Email string `json:"email"`
+		ID         uint    `json:"id"`
+		Email      string  `json:"email"`
+		AvatarPath *string `json:"avatar_path"`
 	} `json:"user"`
 }
 
@@ -43,6 +44,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	resp := LoginResponse{Token: token}
 	resp.User.ID = user.ID
 	resp.User.Email = user.Email
+	resp.User.AvatarPath = user.AvatarPath
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)

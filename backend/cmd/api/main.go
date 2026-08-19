@@ -294,6 +294,9 @@ func main() {
 	if err := os.MkdirAll(filepath.Join(uploadsDir, "covers"), 0755); err != nil {
 		log.Fatalf("❌ Erreur création dossier uploads: %v", err)
 	}
+	if err := os.MkdirAll(filepath.Join(uploadsDir, "avatars"), 0755); err != nil {
+		log.Fatalf("❌ Erreur création dossier uploads: %v", err)
+	}
 	log.Printf("✅ Dossier uploads créé: %s", uploadsDir)
 
 	// 4. Configuration base de données
@@ -340,7 +343,7 @@ func main() {
 
 	// 7. Initialisation des services
 	authService := authservice.NewAuthService(userRepository)
-	userService := userservice.NewUserService(userRepository)
+	userService := userservice.NewUserService(userRepository, uploadsDir)
 	emailService := email.NewEmailService()                                                                   // 🆕 AJOUTÉ
 	passwordResetService := userservice.NewPasswordResetService(userRepository, resetTokenRepo, emailService) // 🆕 AJOUTÉ
 	formatService := formatservice.NewFormatService(formatRepository)
@@ -380,7 +383,7 @@ func main() {
 
 	// 9. Initialisation des handlers
 	authHandler := authhandler.NewAuthHandler(authService)
-	userHandler := userhandler.NewUserHandler(userService)
+	userHandler := userhandler.NewUserHandler(userService, uploadsDir)
 	passwordResetHandler := userhandler.NewPasswordResetHandler(passwordResetService) // 🆕 AJOUTÉ
 	formatHandler := formathandler.NewFormatHandler(formatService)
 	genreHandler := genrehandler.NewGenreHandler(genreService)
@@ -419,6 +422,10 @@ func main() {
 
 	// Route changement de mot de passe (protégée)
 	r.HandleFunc("/api/user/change-password", userHandler.ChangePassword).Methods("POST")
+
+	// Photo de profil (protégées)
+	r.HandleFunc("/api/user/avatar", userHandler.UploadAvatar).Methods("POST")
+	r.HandleFunc("/api/user/avatar", userHandler.RemoveAvatar).Methods("DELETE")
 
 	// Sauvegardes (protégées — pas dans la liste blanche du middleware auth)
 	r.HandleFunc("/api/backups", backupHandler.List).Methods("GET")
@@ -575,6 +582,8 @@ func main() {
 	log.Printf("   POST /api/password-reset/request ✅ PUBLIC 🆕") // 🆕 AJOUTÉ
 	log.Printf("   POST /api/password-reset/reset ✅ PUBLIC 🆕")   // 🆕 AJOUTÉ
 	log.Printf("   POST /api/user/change-password 🔐 Auth")
+	log.Printf("   POST /api/user/avatar 🔐 Auth")
+	log.Printf("   DELETE /api/user/avatar 🔐 Auth")
 	log.Printf("   GET/POST/PUT/DELETE /api/backups/* 🔐 Auth")
 	log.Printf("   GET  /api/stats")
 	log.Printf("   POST /api/search-discogs ✅ PUBLIC")

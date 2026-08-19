@@ -22,6 +22,13 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
+const getAvatarUrl = (path) => {
+  if (!path) return ''
+  if (path.startsWith('http')) return path
+  const SERVER_BASE_URL = import.meta.env.VITE_SERVER_BASE_URL || ''
+  return `${SERVER_BASE_URL}${path}`
+}
+
 // États
 const sidebarOpenMobile = ref(false)
 const windowWidth = ref(window.innerWidth)
@@ -593,7 +600,8 @@ watch(() => route.path, async (newPath) => {
       <div class="sidebar-footer">
         <div class="profile-card" :class="{ 'profile-card-collapsed': effectiveCollapsed }">
           <div class="avatar" :aria-label="authStore.user?.email || 'Compte'">
-            {{ (authStore.user?.email || '?').charAt(0).toUpperCase() }}
+            <img v-if="authStore.user?.avatar_path" :src="getAvatarUrl(authStore.user.avatar_path)" alt="" class="avatar-img" />
+            <template v-else>{{ (authStore.user?.email || '?').charAt(0).toUpperCase() }}</template>
             <span v-if="effectiveCollapsed" class="nav-tooltip">{{ authStore.user?.email || 'Compte' }}</span>
           </div>
 
@@ -1351,6 +1359,13 @@ p.nav-section-label {
   font-weight: 700;
   font-size: 0.88rem;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .profile-info {

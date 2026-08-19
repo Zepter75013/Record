@@ -5,4 +5,5 @@ type User struct {
 	ID           uint
 	Email        string
 	PasswordHash string
+	AvatarPath   *string
 }

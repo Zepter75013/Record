@@ -3,8 +3,12 @@ package service
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"unicode"
 
+	"records-manager/backend/internal/users/domain"
 	"records-manager/backend/internal/users/repository"
 
 	"golang.org/x/crypto/bcrypt"
@@ -12,14 +16,63 @@ import (
 
 type UserService interface {
 	ChangePassword(ctx context.Context, userID uint, oldPassword, newPassword string) error
+	UpdateAvatar(ctx context.Context, userID uint, avatarPath string) (*domain.User, error)
+	RemoveAvatar(ctx context.Context, userID uint) error
 }
 
 type userService struct {
-	userRepo repository.UserRepository
+	userRepo   repository.UserRepository
+	uploadsDir string
 }
 
-func NewUserService(userRepo repository.UserRepository) UserService {
-	return &userService{userRepo: userRepo}
+func NewUserService(userRepo repository.UserRepository, uploadsDir string) UserService {
+	return &userService{userRepo: userRepo, uploadsDir: uploadsDir}
+}
+
+// removeAvatarFile supprime l'ancien fichier avatar sur disque, uniquement
+// s'il s'agit bien d'un fichier stocké localement sous /uploads/avatars/
+// (jamais une URL externe, qui n'existe pas sur ce disque).
+func (s *userService) removeAvatarFile(avatarPath *string) {
+	if avatarPath == nil || *avatarPath == "" || !strings.HasPrefix(*avatarPath, "/uploads/avatars/") {
+		return
+	}
+	relative := strings.TrimPrefix(*avatarPath, "/uploads/")
+	_ = os.Remove(filepath.Join(s.uploadsDir, relative))
+}
+
+func (s *userService) UpdateAvatar(ctx context.Context, userID uint, avatarPath string) (*domain.User, error) {
+	currentUser, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("erreur lors de la récupération de l'utilisateur: %w", err)
+	}
+	if currentUser == nil {
+		return nil, fmt.Errorf("utilisateur non trouvé")
+	}
+
+	if err := s.userRepo.UpdateAvatar(userID, &avatarPath); err != nil {
+		return nil, fmt.Errorf("erreur lors de la mise à jour de l'avatar: %w", err)
+	}
+	s.removeAvatarFile(currentUser.AvatarPath)
+
+	currentUser.AvatarPath = &avatarPath
+	return currentUser, nil
+}
+
+func (s *userService) RemoveAvatar(ctx context.Context, userID uint) error {
+	currentUser, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return fmt.Errorf("erreur lors de la récupération de l'utilisateur: %w", err)
+	}
+	if currentUser == nil {
+		return fmt.Errorf("utilisateur non trouvé")
+	}
+
+	if err := s.userRepo.UpdateAvatar(userID, nil); err != nil {
+		return fmt.Errorf("erreur lors de la suppression de l'avatar: %w", err)
+	}
+	s.removeAvatarFile(currentUser.AvatarPath)
+
+	return nil
 }
 
 // ValidatePasswordStrength valide la complexité du mot de passe

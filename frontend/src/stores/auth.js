@@ -62,6 +62,16 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
+    // Met à jour la photo de profil dans le state ET dans le storage où vit
+    // déjà la session (localStorage si "se souvenir de moi", sinon
+    // sessionStorage) — sans ça la photo redeviendrait la lettre par défaut
+    // au prochain rechargement de page.
+    setAvatarPath(avatarPath) {
+      this.user = { ...(this.user || {}), avatar_path: avatarPath };
+      const storage = localStorage.getItem(TOKEN_KEY) ? localStorage : sessionStorage;
+      storage.setItem(USER_KEY, JSON.stringify(this.user));
+    },
+
     logout() {
       this.token = null;
       this.user = null;
