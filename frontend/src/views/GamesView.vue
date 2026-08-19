@@ -194,12 +194,16 @@ const showCoverPreview = (game, event) => {
 
   const coverRect = event.currentTarget.getBoundingClientRect();
   const preview = document.createElement('div');
-  preview.className = 'cover-preview';
+  // game-cover-preview : classe additionnelle définie dans le bloc <style>
+  // non scopé plus bas — les jaquettes de jeux (souvent des captures 16:9
+  // issues de RAWG, ex. 1920×1080) rendaient très mal recadrées dans le
+  // cadre carré 300×300 pensé pour les pochettes de disques.
+  preview.className = 'cover-preview game-cover-preview';
   preview.setAttribute('role', 'tooltip');
   preview.setAttribute('aria-label', `Aperçu jaquette: ${game.title}`);
 
-  const tooltipWidth = 324;
-  const tooltipHeight = 470;
+  const tooltipWidth = 380;
+  const tooltipHeight = 400;
   const isMobile = window.innerWidth < 768;
   let previewLeft, previewTop;
 
@@ -236,11 +240,11 @@ const showCoverPreview = (game, event) => {
   preview.innerHTML = `
     ${closeButton}
     <div class="cover-preview-content">
-      <div class="cover-preview-image-container">
+      <div class="cover-preview-image-container game-cover-preview-image-container">
         <img
           src="${getImageUrl(game.cover_url)}"
           alt="Jaquette: ${game.title}"
-          class="cover-preview-image"
+          class="cover-preview-image game-cover-preview-image"
           onerror="this.style.display='none'"
         />
       </div>
@@ -937,5 +941,46 @@ onBeforeUnmount(() => {
   color: var(--text-dim);
   font-weight: 600;
   white-space: nowrap;
+}
+</style>
+
+<!-- ✅ Non scopé volontairement : l'aperçu de jaquette (showCoverPreview,
+     ci-dessus) est un DOM créé hors de l'arbre Vue via document.createElement,
+     donc un <style scoped> ne s'y appliquerait pas. Les jaquettes de jeux
+     (souvent des captures 16:9 issues de RAWG) rendent mal dans le cadre
+     carré 300×300 pensé pour les pochettes de disques (DiscsView.vue) —
+     ces règles complètent .cover-preview/.cover-preview-image(-container)
+     partagées (classes composées pour primer sur celles des disques, quel
+     que soit l'ordre de chargement des styles). -->
+<style>
+.game-cover-preview.cover-preview {
+  max-width: 420px;
+}
+.game-cover-preview .cover-preview-image-container.game-cover-preview-image-container {
+  width: 340px;
+  max-width: 340px;
+  height: auto;
+  max-height: 340px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.game-cover-preview .cover-preview-image.game-cover-preview-image {
+  width: 100%;
+  height: auto;
+  max-height: 340px;
+  object-fit: contain;
+  aspect-ratio: auto;
+}
+@media (max-width: 767px) {
+  .game-cover-preview.cover-preview {
+    max-width: 90vw;
+  }
+  .game-cover-preview .cover-preview-image-container.game-cover-preview-image-container {
+    width: 100%;
+    max-width: 320px;
+    height: auto;
+    max-height: none;
+  }
 }
 </style>
