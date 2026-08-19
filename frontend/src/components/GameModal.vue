@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useApi } from '@/composables/useApi'
 import rawgApi from '@/services/rawgApi'
 import BarcodeScanner from '@/components/BarcodeScanner.vue'
@@ -108,6 +108,12 @@ watch(
       showSearchStep.value = true
       formData.value = defaultFormData()
       resetSearchStep()
+      // Le champ code-barres doit avoir le focus dès l'ouverture : une
+      // douchette USB se comporte comme un clavier qui tape très vite +
+      // Entrée — sans focus sur ce champ, la saisie part dans le vide (ou
+      // dans un autre champ) et "le numéro ne se met pas dans la case".
+      await nextTick()
+      barcodeInput.value?.focus()
     }
     pendingGenreName.value = ''
     pendingPublisherName.value = ''
@@ -225,6 +231,7 @@ function skipToManualEntry() {
 
 function backToSearch() {
   showSearchStep.value = true
+  nextTick(() => barcodeInput.value?.focus())
 }
 
 // Permet, en édition, de relancer une recherche RAWG pour remplacer la
@@ -236,6 +243,7 @@ function researchOnWeb() {
   barcode.value = formData.value.barcode || ''
   searchTitle.value = formData.value.title || ''
   showSearchStep.value = true
+  nextTick(() => barcodeInput.value?.focus())
 }
 
 function openFilePicker() {
