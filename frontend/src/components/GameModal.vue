@@ -87,6 +87,10 @@ watch(
   async (open) => {
     if (!open) return
     localApiError.value = null
+    // Une jaquette sélectionnée mais jamais confirmée (bouton "Utiliser
+    // cette image") ne doit pas survivre à la fermeture de la modale, sinon
+    // elle réapparaît sur le jeu suivant qu'on ajoute ou édite.
+    uploadPreview.value = { url: null, file: null, size: 0, width: 0, height: 0, loading: false }
     await fetchLookups()
     if (isEditing.value) {
       showSearchStep.value = false
