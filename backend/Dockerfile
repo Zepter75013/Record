@@ -44,7 +44,7 @@ COPY --from=builder /build/api .
 
 # Créer les dossiers persistants avec les bonnes permissions (montés en
 # volumes par docker-compose)
-RUN mkdir -p /app/uploads/covers /app/backups /app/reports && chown -R appuser:appuser /app
+RUN mkdir -p /app/uploads/covers /app/uploads/avatars /app/backups /app/reports && chown -R appuser:appuser /app
 
 # Utiliser l'utilisateur non-root
 USER appuser
