@@ -68,13 +68,31 @@ const yearOptions = computed(() => {
   return Array.from(years).sort((a, b) => b - a);
 });
 
-const activeFiltersCount = computed(() => {
-  let count = 0;
-  if (filterPlatform.value) count += 1;
-  if (filterGenre.value) count += 1;
-  if (filterYear.value) count += 1;
-  return count;
+// ✅ Filtres actifs sous forme de badges retirables — même principe que
+// DiscsView.vue (activeFilters/removeFilter), au lieu d'un simple compteur.
+const activeFilters = computed(() => {
+  const list = [];
+  if (searchQuery.value) list.push({ type: 'search', label: `🔍 ${searchQuery.value}` });
+  if (filterPlatform.value) {
+    const p = platforms.value.find((x) => String(x.id) === String(filterPlatform.value));
+    if (p) list.push({ type: 'platform', label: `🎮 ${p.name}` });
+  }
+  if (filterGenre.value) {
+    const g = gameGenres.value.find((x) => String(x.id) === String(filterGenre.value));
+    if (g) list.push({ type: 'genre', label: `🕹️ ${g.name}` });
+  }
+  if (filterYear.value) {
+    list.push({ type: 'year', label: `📅 ${filterYear.value}` });
+  }
+  return list;
 });
+
+const removeFilter = (type) => {
+  if (type === 'search') searchQuery.value = '';
+  else if (type === 'platform') filterPlatform.value = '';
+  else if (type === 'genre') filterGenre.value = '';
+  else if (type === 'year') filterYear.value = '';
+};
 
 const resetFilters = () => {
   searchQuery.value = '';
@@ -373,14 +391,21 @@ onBeforeUnmount(() => {
               <span class="icon">🏠</span>
             </button>
             <span class="title-icon">🎮</span>
-            <h1>Jeux</h1>
+            <h1>Gestion des Jeux</h1>
           </div>
           <div class="toolbar">
-            <button @click="showFilters = !showFilters" class="ghost-btn filter-toggle-button" :disabled="isLoading">
-              <span class="icon" aria-hidden="true">👁️</span> {{ showFilters ? 'Masquer Filtres' : 'Afficher Filtres' }}
+            <button
+              @click="showFilters = !showFilters"
+              class="filter-toggle-button"
+              :class="{ 'filters-hidden': !showFilters }"
+              :aria-expanded="showFilters"
+              aria-label="Basculer l'affichage des filtres"
+              :disabled="isLoading"
+            >
+              <span class="icon" aria-hidden="true">{{ showFilters ? '👁️' : '👁️‍🗨️' }}</span> {{ showFilters ? 'Masquer' : 'Afficher' }} Filtres
             </button>
-            <button @click="exportData" class="ghost-btn" :disabled="isLoading || games.length === 0">
-              <span class="icon">📤</span> Exporter
+            <button @click="exportData" class="export-button" :disabled="isLoading || games.length === 0" aria-label="Exporter les données">
+              <span class="icon" aria-hidden="true">📤</span> Exporter
             </button>
             <button @click="openModal()" class="primary-btn add-button">
               <span class="icon">➕</span>
@@ -396,37 +421,71 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <div v-if="showFilters" class="panel filters-panel">
+    <div v-if="showFilters" class="filter-bar">
+      <div class="search-group">
+        <label for="search">Rechercher :</label>
+        <div class="search-wrapper">
+          <input
+            id="search"
+            v-model="searchQuery"
+            type="text"
+            placeholder="Titre, plateforme, genre, éditeur..."
+            class="search-input"
+            aria-label="Rechercher des jeux"
+            :disabled="isLoading"
+          />
+          <span class="search-icon" aria-hidden="true">🔍</span>
+        </div>
+      </div>
       <div class="filters-grid">
-        <label class="form-field">
-          <span>Rechercher</span>
-          <input v-model="searchQuery" type="text" placeholder="Titre, plateforme, genre, éditeur..." />
-        </label>
-        <label class="form-field">
-          <span>Plateforme</span>
-          <select v-model="filterPlatform">
+        <div class="filter-group">
+          <label for="filter-platform">Plateforme :</label>
+          <select id="filter-platform" v-model="filterPlatform" class="filter-select" :disabled="isLoading" aria-label="Filtrer par plateforme">
             <option value="">Toutes</option>
             <option v-for="p in platforms" :key="p.id" :value="p.id">{{ p.name }}</option>
           </select>
-        </label>
-        <label class="form-field">
-          <span>Genre</span>
-          <select v-model="filterGenre">
+        </div>
+        <div class="filter-group">
+          <label for="filter-genre">Genre :</label>
+          <select id="filter-genre" v-model="filterGenre" class="filter-select" :disabled="isLoading" aria-label="Filtrer par genre">
             <option value="">Tous</option>
             <option v-for="g in gameGenres" :key="g.id" :value="g.id">{{ g.name }}</option>
           </select>
-        </label>
-        <label class="form-field">
-          <span>Année</span>
-          <select v-model="filterYear">
+        </div>
+        <div class="filter-group">
+          <label for="filter-year">Année :</label>
+          <select id="filter-year" v-model="filterYear" class="filter-select" :disabled="isLoading" aria-label="Filtrer par année">
             <option value="">Toutes</option>
             <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
           </select>
-        </label>
+        </div>
       </div>
-      <button v-if="activeFiltersCount > 0 || searchQuery" @click="resetFilters" class="ghost-btn reset-filters-button">
-        Réinitialiser ({{ activeFiltersCount }})
+      <button
+        @click="resetFilters"
+        class="reset-button"
+        :disabled="activeFilters.length === 0 || isLoading"
+        aria-label="Réinitialiser tous les filtres"
+      >
+        <span aria-hidden="true">🗑️</span> Réinitialiser ({{ activeFilters.length }})
       </button>
+    </div>
+
+    <div v-if="activeFilters.length > 0" class="active-filters-badges" role="region" aria-label="Filtres actifs">
+      <span class="filters-title">Filtres actifs :</span>
+      <span
+        v-for="(filter, index) in activeFilters"
+        :key="index"
+        class="filter-badge"
+        @click="removeFilter(filter.type)"
+        :aria-label="`Supprimer le filtre ${filter.label}`"
+        role="button"
+        tabindex="0"
+        @keydown.enter="removeFilter(filter.type)"
+        @keydown.space="removeFilter(filter.type)"
+      >
+        {{ filter.label }}
+        <span class="remove-icon" aria-hidden="true">×</span>
+      </span>
     </div>
 
     <div class="content-panel panel">
@@ -713,11 +772,231 @@ onBeforeUnmount(() => {
 .toolbar { margin: 8px 0 0 0; display: flex; gap: 10px; flex-wrap: wrap; }
 .add-button .icon { margin-right: 8px; }
 
-.filters-panel { padding: 16px 20px; margin-bottom: 16px; }
-.filters-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.9rem; }
-@media (max-width: 900px) { .filters-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 560px) { .filters-grid { grid-template-columns: 1fr; } }
-.reset-filters-button { margin-top: 12px; }
+/* ✅ Boutons de la barre d'outils — même style coloré que DiscsView.vue
+   (pilules pleines, pas de gris générique .ghost-btn). */
+.filter-toggle-button,
+.export-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1.1em;
+  transition: all 0.3s ease;
+  min-height: 44px;
+}
+.filter-toggle-button {
+  background: var(--accent);
+  color: white;
+}
+.filter-toggle-button:hover:not(:disabled) {
+  filter: brightness(1.12);
+  transform: translateY(-2px);
+}
+.filter-toggle-button.filters-hidden {
+  background: var(--text-dim);
+}
+.filter-toggle-button.filters-hidden:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+.filter-toggle-button:disabled,
+.export-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.export-button {
+  background: var(--positive-text);
+  color: white;
+}
+.export-button:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-2px);
+}
+.filter-toggle-button .icon,
+.export-button .icon,
+.add-button .icon {
+  margin-right: 8px;
+  font-size: 1.1em;
+}
+
+/* ✅ Barre de filtres — même structure/style que DiscsView.vue (.filter-bar),
+   au lieu du panel générique .filters-panel/.form-field partagé avec les
+   vues de gestion (Genres/Formats/...). */
+.filter-bar {
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  padding: 16px;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  margin-bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+}
+.search-group {
+  flex: 1;
+  min-width: 200px;
+}
+.search-group label,
+.filter-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: var(--text-soft);
+  font-size: 0.9em;
+}
+.search-wrapper {
+  position: relative;
+}
+.search-input {
+  width: 100%;
+  padding: 10px 36px 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(var(--tint-rgb), 0.04);
+  color: var(--text);
+  font-size: 0.85em;
+  transition: border-color 0.2s;
+  min-height: 44px;
+}
+.search-input:focus {
+  border-color: var(--accent-soft);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+}
+.search-input:disabled {
+  background-color: rgba(var(--tint-rgb), 0.02);
+  cursor: not-allowed;
+}
+.search-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-dim);
+  font-size: 14px;
+}
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  flex: 3;
+}
+.filter-select {
+  width: 100%;
+  padding: 10px 32px 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 0.85em;
+  cursor: pointer;
+  min-height: 44px;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 16px;
+}
+.filter-select:focus {
+  border-color: var(--accent-soft);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+}
+.filter-select:disabled {
+  background-color: rgba(var(--tint-rgb), 0.02);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.reset-button {
+  padding: 10px 16px;
+  background: var(--text-dim);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  transition: all 0.3s ease;
+}
+.reset-button:hover:not(:disabled) {
+  filter: brightness(1.15);
+  transform: translateY(-2px);
+}
+.reset-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.active-filters-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: rgba(var(--tint-rgb), 0.04);
+  border-radius: 8px;
+  border-left: 4px solid var(--accent-soft);
+}
+.filters-title {
+  font-weight: 700;
+  color: var(--text);
+  margin-right: 12px;
+  align-self: center;
+}
+.filter-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(var(--tint-rgb), 0.08);
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.85em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+.filter-badge:hover {
+  background: rgba(var(--tint-rgb), 0.14);
+  border-color: var(--accent);
+}
+.filter-badge:focus {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 2px;
+}
+.remove-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(var(--tint-rgb), 0.22);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: bold;
+  transition: background 0.2s;
+}
+.filter-badge:hover .remove-icon {
+  background: rgba(var(--tint-rgb), 0.32);
+}
+@media (max-width: 900px) {
+  .filters-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .filters-grid { grid-template-columns: 1fr; }
+  .filter-bar { flex-direction: column; align-items: stretch; }
+}
 
 .content-panel { padding: 20px; }
 .table-responsive { overflow-x: auto; margin-bottom: 20px; border: 1px solid var(--line); border-radius: 12px; }
