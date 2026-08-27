@@ -434,36 +434,6 @@ const breakdown2 = computed(() =>
   buildBreakdown(filteredItems.value, (i) => i[cfg.value.breakdown2Field], cfg.value.breakdown2EmptyLabel)
 )
 
-function monthKey(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-}
-
-function formatMonthLabel(date) {
-  const formatted = new Intl.DateTimeFormat('fr-FR', { month: 'short', year: '2-digit' }).format(date)
-  return formatted.charAt(0).toUpperCase() + formatted.slice(1)
-}
-
-const monthlyAcquisitions = computed(() => {
-  const counts = new Map()
-
-  for (const item of filteredItems.value) {
-    if (!item.created_at) continue
-    const date = new Date(item.created_at)
-    if (Number.isNaN(date.getTime())) continue
-    const key = monthKey(date)
-    counts.set(key, (counts.get(key) || 0) + 1)
-  }
-
-  const keys = Array.from(counts.keys()).sort()
-  const labels = keys.map((key) => {
-    const [year, month] = key.split('-').map(Number)
-    return formatMonthLabel(new Date(year, month - 1, 1))
-  })
-  const values = keys.map((key) => counts.get(key))
-
-  return { labels, values }
-})
-
 function compareSortField(a, b, field) {
   if (field === 'release_year') {
     return (a.release_year || 0) - (b.release_year || 0)
@@ -551,8 +521,11 @@ function resetFilters() {
 // Les polices standard de jsPDF (Helvetica) n'ont pas les glyphes des espaces
 // insécable/fine insécable utilisées par Intl pour séparer les milliers —
 // elles s'affichaient comme des "/" ou cassaient l'alignement des chiffres.
+// (Le regex précédent visait déjà ces caractères mais avait perdu ses
+// échappements Unicode en cours de route et ne contenait plus que des
+// espaces ASCII classiques — il ne matchait donc jamais rien.)
 function formatCurrencyForPdf(value) {
-  return formatCurrency(value).replace(/[  ]/g, ' ')
+  return formatCurrency(value).replace(/[   ]/g, ' ')
 }
 
 // Même limitation que ci-dessus : les polices standard de jsPDF (Helvetica,
@@ -624,19 +597,15 @@ async function buildCoverThumbnails() {
 
 const genreBreakdownCanvas = ref(null)
 const breakdown2Canvas = ref(null)
-const evolutionCanvas = ref(null)
 
 let genreBreakdownChart = null
 let breakdown2Chart = null
-let evolutionChart = null
 
 function destroyCharts() {
   genreBreakdownChart?.destroy()
   breakdown2Chart?.destroy()
-  evolutionChart?.destroy()
   genreBreakdownChart = null
   breakdown2Chart = null
-  evolutionChart = null
 }
 
 async function renderCharts() {
@@ -679,27 +648,6 @@ async function renderCharts() {
     })
   }
 
-  if (monthlyAcquisitions.value.labels.length && evolutionCanvas.value) {
-    evolutionChart = new ChartJS(evolutionCanvas.value.getContext('2d'), {
-      type: 'bar',
-      data: {
-        labels: monthlyAcquisitions.value.labels,
-        datasets: [{ label: `${cfg.value.nounPluralCap} ajoutés`, data: monthlyAcquisitions.value.values, backgroundColor: '#3b82f6' }],
-      },
-      options: {
-        responsive: false,
-        animation: false,
-        scales: {
-          x: { ticks: { color: '#3a3f33' }, grid: { display: false } },
-          y: { ticks: { color: '#3a3f33', precision: 0 }, grid: { color: '#e5e7eb' } },
-        },
-        plugins: {
-          legend: { display: false },
-          title: { display: true, text: 'Acquisitions par mois', color: '#22262a', font: { size: 13, weight: '600' } },
-        },
-      },
-    })
-  }
 }
 
 watch(
@@ -898,10 +846,6 @@ async function generatePdfBlob() {
     cursorY = (await addChartToDoc(doc, breakdown2Chart, marginX, cursorY, pageWidth - marginX * 2, pageHeight - cursorY - bottomMargin)) + 8
   }
 
-  if (evolutionChart) {
-    cursorY = (await addChartToDoc(doc, evolutionChart, marginX, cursorY, pageWidth - marginX * 2, pageHeight - cursorY - bottomMargin)) + 8
-  }
-
   doc.addPage()
   doc.setTextColor(40, 46, 38)
   doc.setFont(fontFamily, 'bold')
@@ -1036,11 +980,6 @@ async function generateXlsxBlob() {
   addBreakdownSheet('Répartition genre', 'Genre', genreBreakdown.value)
   addBreakdownSheet(`Répartition ${cfg.value.breakdown2Label}`, cfg.value.breakdown2Label, breakdown2.value)
 
-  const evolutionSheet = addWorksheet('Évolution mensuelle')
-  evolutionSheet.columns = [{ header: 'Mois', width: 15 }, { header: `${cfg.value.nounPluralCap} ajoutés`, width: 20 }]
-  evolutionSheet.getRow(1).font = { bold: true }
-  monthlyAcquisitions.value.labels.forEach((label, i) => evolutionSheet.addRow([label, monthlyAcquisitions.value.values[i]]))
-
   const tracksByDiscId = await buildTracksByDiscId()
   const coverThumbnails = await buildCoverThumbnails()
   const includeTracks = cfg.value.hasTracks && reportIncludeTracklist.value
@@ -1130,7 +1069,7 @@ async function generateDocxBlob() {
   )
   children.push(new Table({ rows: kpiRows, width: { size: 100, type: WidthType.PERCENTAGE } }))
 
-  for (const chart of [genreBreakdownChart, breakdown2Chart, evolutionChart]) {
+  for (const chart of [genreBreakdownChart, breakdown2Chart]) {
     const bytes = chartImageBytes(chart)
     if (!bytes) continue
     children.push(
@@ -1563,7 +1502,6 @@ async function generateReport() {
           <div class="reports-charts">
             <canvas ref="genreBreakdownCanvas" width="320" height="220"></canvas>
             <canvas ref="breakdown2Canvas" width="320" height="220"></canvas>
-            <canvas ref="evolutionCanvas" width="660" height="220" class="reports-chart-wide"></canvas>
           </div>
 
           <p v-if="generationError" class="form-error">{{ generationError }}</p>
@@ -1784,10 +1722,6 @@ async function generateReport() {
   border-radius: 12px;
   padding: 8px;
   box-sizing: border-box;
-}
-
-.reports-chart-wide {
-  grid-column: 1 / -1;
 }
 
 @media (max-width: 760px) {
