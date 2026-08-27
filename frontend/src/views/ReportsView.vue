@@ -555,6 +555,15 @@ function formatCurrencyForPdf(value) {
   return formatCurrency(value).replace(/[  ]/g, ' ')
 }
 
+// Même limitation que ci-dessus : les polices standard de jsPDF (Helvetica,
+// Times, Courier) n'ont pas non plus les glyphes emoji (🎮, 💿...) utilisés
+// dans criteriaDescription — ils s'affichaient comme des caractères
+// incohérents ("Ø<ß®"). On les retire uniquement pour le PDF ; Excel et Word
+// les affichent correctement et ne sont pas concernés.
+function stripEmojiForPdf(text) {
+  return text.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]️?/gu, '').replace(/\s{2,}/g, ' ').trim()
+}
+
 function formatTableDate(value) {
   return formatDate(value) || ''
 }
@@ -835,7 +844,7 @@ async function generatePdfBlob() {
   doc.setFont(fontFamily, 'normal')
   doc.setFontSize(9.5)
   doc.setTextColor(90, 96, 88)
-  doc.text(criteriaDescription.value, marginX, cursorY)
+  doc.text(stripEmojiForPdf(criteriaDescription.value), marginX, cursorY)
   cursorY += 10
 
   const kpis = [
