@@ -58,6 +58,27 @@
                   </div>
                 </label>
 
+                <label class="form-field">
+                  <span>Pays <span class="optional-text">(optionnel)</span></span>
+                  <div class="select-with-button">
+                    <select v-model="formData.country_id" :disabled="saving">
+                      <option value="">Sélectionnez un pays</option>
+                      <option v-for="country in countries" :key="country.id" :value="country.id">
+                        {{ country.name }}
+                      </option>
+                    </select>
+                    <button
+                      type="button"
+                      @click="isCountryModalOpen = true"
+                      class="create-country-button"
+                      title="Créer un nouveau pays"
+                      :disabled="saving"
+                    >
+                      <span class="icon">+</span>
+                    </button>
+                  </div>
+                </label>
+
                 <label class="form-field form-field-full">
                   <span>Biographie <span class="optional-text">(optionnel)</span></span>
                   <textarea
@@ -179,11 +200,20 @@
       </div>
     </div>
   </Teleport>
+
+  <CountriesModal
+    :is-open="isCountryModalOpen"
+    :country-data="null"
+    :api-error="null"
+    @close="isCountryModalOpen = false"
+    @country-saved="handleCountrySaved"
+  />
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { useApi } from '@/composables/useApi';
+import CountriesModal from '@/components/CountriesModal.vue';
 
 const emit = defineEmits(['close', 'artist-saved']);
 
@@ -204,12 +234,15 @@ const isUnsavedChangesModalOpen = ref(false);
 const isDuplicateModalOpen = ref(false);
 const duplicateArtistName = ref('');
 const overlayMouseDownTarget = ref(null); // Pour éviter fermeture lors de sélection texte
+const countries = ref([]);
+const isCountryModalOpen = ref(false);
 
 // Données du formulaire
 const formData = ref({
   id: null,
   name: '',
   biography: '',
+  country_id: '',
   created_at: '',
   updated_at: ''
 });
@@ -220,6 +253,28 @@ const isNameValid = computed(() => formData.value.name.trim().length >= 2);
 const isFormValid = computed(() => {
   return formData.value.name?.trim() && isNameValid.value;
 });
+
+// Chargement de la liste des pays (pour le select)
+const loadCountries = async () => {
+  try {
+    const data = await get('/countries');
+    countries.value = Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error('Erreur chargement pays:', error);
+    countries.value = [];
+  }
+};
+
+const handleCountrySaved = (savedCountry) => {
+  const existingIndex = countries.value.findIndex((c) => c.id === savedCountry.id);
+  if (existingIndex !== -1) {
+    countries.value[existingIndex] = savedCountry;
+  } else {
+    countries.value.push(savedCountry);
+  }
+  formData.value.country_id = savedCountry.id;
+  isCountryModalOpen.value = false;
+};
 
 // Chargement des statistiques (en édition)
 const loadArtistStats = async () => {
@@ -264,7 +319,8 @@ const handleSave = async () => {
   try {
     const dataToSend = {
       name: formData.value.name.trim(),
-      biography: formData.value.biography?.trim() || null
+      biography: formData.value.biography?.trim() || null,
+      country_id: formData.value.country_id || null
     };
     console.log('📤 [ArtistsModal] Données à envoyer:', dataToSend);
 
@@ -355,6 +411,7 @@ const resetForm = () => {
     id: null,
     name: '',
     biography: '',
+    country_id: '',
     created_at: '',
     updated_at: ''
   };
@@ -369,6 +426,7 @@ const initializeForm = () => {
   if (props.artistData?.id) {
     formData.value = {
       ...props.artistData,
+      country_id: props.artistData.country_id ?? '',
       created_at: props.artistData.created_at || '',
       updated_at: props.artistData.updated_at || ''
     };
@@ -377,13 +435,15 @@ const initializeForm = () => {
     formData.value = {
       id: null,
       name: props.prefillName,
-      biography: ''
+      biography: '',
+      country_id: ''
     };
   } else if (props.artistData?.name) {
     formData.value = {
       id: null,
       name: props.artistData.name,
-      biography: props.artistData.biography || ''
+      biography: props.artistData.biography || '',
+      country_id: ''
     };
   } else {
     resetForm();
@@ -393,7 +453,10 @@ const initializeForm = () => {
 
 // Watchers
 watch(() => props.isOpen, (isOpen) => {
-  if (isOpen) initializeForm();
+  if (isOpen) {
+    initializeForm();
+    loadCountries();
+  }
 });
 
 watch(() => props.prefillName, (newPrefillName) => {
@@ -547,6 +610,42 @@ watch(() => props.artistData, (newData) => {
   text-align: right;
   font-size: 0.82em;
   color: var(--text-dim);
+}
+
+.select-with-button {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.select-with-button select {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+
+.create-country-button {
+  padding: 0 14px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  width: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.create-country-button:hover:not(:disabled) {
+  background: var(--accent-blue);
+}
+
+.create-country-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .stats-grid {

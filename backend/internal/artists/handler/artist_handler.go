@@ -21,11 +21,13 @@ func NewArtistHandler(service *artistsService.ArtistService) *ArtistHandler {
 type CreateArtistRequest struct {
 	Name      string `json:"name"`
 	Biography string `json:"biography"`
+	CountryID *int   `json:"country_id"`
 }
 
 type UpdateArtistRequest struct {
 	Name      string `json:"name"`
 	Biography string `json:"biography"`
+	CountryID *int   `json:"country_id"`
 }
 
 func (h *ArtistHandler) CreateArtist(w http.ResponseWriter, r *http.Request) {
@@ -35,7 +37,7 @@ func (h *ArtistHandler) CreateArtist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	artist, err := h.service.CreateArtist(r.Context(), req.Name, req.Biography)
+	artist, err := h.service.CreateArtist(r.Context(), req.Name, req.Biography, req.CountryID)
 	if err != nil {
 		if err.Error() == "un artiste avec ce nom existe déjà" {
 			http.Error(w, err.Error(), http.StatusConflict)
@@ -77,7 +79,7 @@ func (h *ArtistHandler) UpdateArtist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	artist, err := h.service.UpdateArtist(r.Context(), id, req.Name, req.Biography)
+	artist, err := h.service.UpdateArtist(r.Context(), id, req.Name, req.Biography, req.CountryID)
 	if err != nil {
 		if err.Error() == "un autre artiste avec ce nom existe déjà" {
 			http.Error(w, err.Error(), http.StatusConflict)
