@@ -161,7 +161,11 @@ async function openStreaming() {
     opacity: 0;
   }
 
-  .vinyl-card:hover .cover-play-btn:not(.inline) {
+  /* Le bouton flottant est révélé au survol de son conteneur direct — doit
+     être tenu à jour avec le(s) conteneur(s) de pochette qui l'utilisent
+     (actuellement .detail-cover dans VinylsByArtist.vue). */
+  .vinyl-card:hover .cover-play-btn:not(.inline),
+  .detail-cover:hover .cover-play-btn:not(.inline) {
     opacity: 1;
   }
 

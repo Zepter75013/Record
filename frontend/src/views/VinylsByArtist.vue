@@ -776,8 +776,8 @@ onMounted(() => {
                 <div class="cover-fallback" :style="{ display: selectedVinyl.cover_url ? 'none' : 'flex' }">
                   <span class="fallback-icon">💿</span>
                 </div>
+                <StreamingButtons :disc="selectedVinyl" />
               </div>
-              <StreamingButtons :disc="selectedVinyl" />
               <div class="detail-actions">
                 <button type="button" class="detail-action-btn" @click="openTracklistModal(selectedVinyl)">
                   🎵 Gérer les pistes
