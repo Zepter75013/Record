@@ -532,6 +532,7 @@ func main() {
 	r.HandleFunc("/api/discs/{id}/tracks", discHandler.GetTracks).Methods("GET")
 	r.HandleFunc("/api/discs/{id}/tracks", discHandler.UpdateTracks).Methods("PUT")
 	r.HandleFunc("/api/discs/{id}/tracks/fetch", discHandler.FetchTracks).Methods("POST")
+	r.HandleFunc("/api/discs/{id}/tracks/preview", discHandler.PreviewTracks).Methods("GET")
 
 	// ⭐ Jeux vidéo - Routes principales
 	r.HandleFunc("/api/games", gameHandler.GetAllGames).Methods("GET")

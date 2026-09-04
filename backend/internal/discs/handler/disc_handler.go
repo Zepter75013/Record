@@ -427,8 +427,25 @@ func (h *DiscHandler) FetchTracks(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "ID invalide", http.StatusBadRequest)
 		return
 	}
-	force := r.URL.Query().Get("force") == "true"
-	list, err := h.service.FetchTracklistForDisc(r.Context(), id, force)
+	list, err := h.service.FetchTracklistForDisc(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(list)
+}
+
+// PreviewTracks recherche une tracklist sur Discogs sans la sauvegarder —
+// le frontend l'affiche à l'utilisateur, qui valide (PUT /tracks) ou annule.
+func (h *DiscHandler) PreviewTracks(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "ID invalide", http.StatusBadRequest)
+		return
+	}
+	list, err := h.service.PreviewTracklistForDisc(r.Context(), id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -6,7 +6,7 @@ import { useApi } from '@/composables/useApi'
 import StreamingButtons from '@/components/StreamingButtons.vue'
 import TracklistModal from '@/components/TracklistModal.vue'
 import DiscsModal from '@/components/DiscsModal/DiscsModal.vue'
-import { fetchTracks, fetchTracklistOnDemand } from '@/services/tracks'
+import { fetchTracks, previewTracklist, updateTracks } from '@/services/tracks'
 import { formatCurrency } from '@/utils/format'
 import { groupTracksByDiscSide } from '@/utils/discSides'
 
@@ -147,45 +147,54 @@ const selectVinyl = (vinyl) => {
   loadVinylTracks(vinyl)
 }
 
-// Recherche une nouvelle tracklist sur Discogs et remplace l'existante —
-// utile quand les pistes chargées automatiquement sont incomplètes ou
-// erronées (mauvais pressage). Écrase tout, donc confirmation (modale
-// maison, pas window.confirm) si des pistes sont déjà là.
+// Recherche une nouvelle tracklist sur Discogs, sans rien écraser tout de
+// suite : on affiche la proposition dans une modale, et seul un clic sur
+// "Valider et remplacer" l'enregistre (Annuler ne change rien).
 const isRefetchingTracks = ref(false)
-const isRefetchConfirmOpen = ref(false)
+const isPreviewModalOpen = ref(false)
+const isApplyingPreview = ref(false)
+const previewTracklistTracks = ref([])
+const previewGroups = computed(() => groupTracksByDiscSide(previewTracklistTracks.value))
+const previewTotalDuration = computed(() => formatDuration(sumDuration(previewTracklistTracks.value)))
 
-const refetchTracksFromInternet = (vinyl) => {
-  if (!vinyl?.id) return
-  if (vinylTracks.value.length > 0) {
-    isRefetchConfirmOpen.value = true
-    return
-  }
-  performTracksRefetch(vinyl)
-}
-
-const confirmRefetchTracks = () => {
-  isRefetchConfirmOpen.value = false
-  performTracksRefetch(selectedVinyl.value)
-}
-
-const cancelRefetchTracks = () => {
-  isRefetchConfirmOpen.value = false
-}
-
-const performTracksRefetch = async (vinyl) => {
+const refetchTracksFromInternet = async (vinyl) => {
   if (!vinyl?.id) return
   isRefetchingTracks.value = true
   try {
-    const result = await fetchTracklistOnDemand(vinyl.id, true)
-    vinylTracks.value = result || []
-    const found = vinylTracks.value.length > 0
-    const localVinyl = vinyls.value.find((v) => v.id === vinyl.id)
-    if (localVinyl) localVinyl.has_tracks = found
-    if (!found) alert('Aucune piste trouvée sur Discogs pour ce disque.')
+    const result = await previewTracklist(vinyl.id)
+    previewTracklistTracks.value = result || []
+    if (!previewTracklistTracks.value.length) {
+      alert('Aucune piste trouvée sur Discogs pour ce disque.')
+      return
+    }
+    isPreviewModalOpen.value = true
   } catch (err) {
-    alert(`Échec de la mise à jour des pistes : ${err.message}`)
+    alert(`Échec de la recherche sur Discogs : ${err.message}`)
   } finally {
     isRefetchingTracks.value = false
+  }
+}
+
+const cancelTracklistPreview = () => {
+  isPreviewModalOpen.value = false
+  previewTracklistTracks.value = []
+}
+
+const applyTracklistPreview = async () => {
+  if (!selectedVinyl.value?.id) return
+  isApplyingPreview.value = true
+  try {
+    const result = await updateTracks(selectedVinyl.value.id, previewTracklistTracks.value)
+    vinylTracks.value = result || []
+    const found = vinylTracks.value.length > 0
+    const localVinyl = vinyls.value.find((v) => v.id === selectedVinyl.value.id)
+    if (localVinyl) localVinyl.has_tracks = found
+    isPreviewModalOpen.value = false
+    previewTracklistTracks.value = []
+  } catch (err) {
+    alert(`Échec de l'enregistrement des pistes : ${err.message}`)
+  } finally {
+    isApplyingPreview.value = false
   }
 }
 
@@ -876,18 +885,48 @@ onMounted(() => {
     />
 
     <Teleport to="body">
-      <div v-if="isRefetchConfirmOpen" class="modal-overlay" @click.self="cancelRefetchTracks">
-        <div class="modal-card refetch-confirm-card">
+      <div v-if="isPreviewModalOpen" class="modal-overlay" @click.self="cancelTracklistPreview">
+        <div class="modal-card preview-tracklist-card">
           <div class="modal-header">
-            <h2>🔄 Remplacer la tracklist ?</h2>
+            <h2>🔄 Tracklist trouvée sur Discogs</h2>
           </div>
-          <p>
-            Une nouvelle recherche sur Discogs va remplacer la tracklist actuelle de
-            « {{ selectedVinyl?.title }} ». Les pistes actuelles seront perdues.
+          <p class="preview-intro">
+            Pour « {{ selectedVinyl?.title }} » — {{ previewTracklistTracks.length }} piste(s),
+            {{ previewTotalDuration }}. Vérifiez avant de remplacer la tracklist actuelle.
           </p>
+
+          <div class="preview-tracklist">
+            <div v-for="d in previewGroups.discs" :key="d.disc" class="preview-disc-group">
+              <h4 v-if="previewGroups.discs.length > 1" class="preview-disc-title">Disque {{ d.disc }}</h4>
+              <div class="preview-sides">
+                <div v-for="s in d.sides" :key="s.letter" class="preview-side">
+                  <h5 v-if="s.tracks.length">Face {{ s.letter }}</h5>
+                  <ol v-if="s.tracks.length">
+                    <li v-for="(t, i) in s.tracks" :key="i">
+                      <span class="preview-track-pos">{{ t.position || i + 1 }}</span>
+                      <span class="preview-track-title">{{ t.title }}</span>
+                      <span class="preview-track-duration" v-if="t.duration">{{ t.duration }}</span>
+                    </li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+            <ol v-if="previewGroups.noFace.length" class="preview-noface">
+              <li v-for="(t, i) in previewGroups.noFace" :key="i">
+                <span class="preview-track-pos">{{ t.position || i + 1 }}</span>
+                <span class="preview-track-title">{{ t.title }}</span>
+                <span class="preview-track-duration" v-if="t.duration">{{ t.duration }}</span>
+              </li>
+            </ol>
+          </div>
+
           <div class="modal-actions">
-            <button type="button" class="ghost-btn" @click="cancelRefetchTracks">Annuler</button>
-            <button type="button" class="danger-btn" @click="confirmRefetchTracks">Remplacer</button>
+            <button type="button" class="ghost-btn" :disabled="isApplyingPreview" @click="cancelTracklistPreview">
+              Annuler
+            </button>
+            <button type="button" class="danger-btn" :disabled="isApplyingPreview" @click="applyTracklistPreview">
+              {{ isApplyingPreview ? 'Enregistrement…' : 'Valider et remplacer' }}
+            </button>
           </div>
         </div>
       </div>
@@ -902,14 +941,88 @@ onMounted(() => {
   padding: 20px;
 }
 
-.refetch-confirm-card {
-  max-width: 460px;
+.preview-tracklist-card {
+  max-width: 560px;
 }
 
-.refetch-confirm-card p {
-  margin: 0;
+.preview-intro {
+  margin: 0 0 14px 0;
   color: var(--text-soft);
   line-height: 1.5;
+}
+
+.preview-tracklist {
+  max-height: 45vh;
+  overflow-y: auto;
+  display: grid;
+  gap: 14px;
+}
+
+.preview-disc-group {
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(var(--tint-rgb), 0.02);
+}
+
+.preview-disc-title {
+  margin: 0 0 8px 0;
+  color: var(--text);
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.preview-sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.preview-side h5 {
+  margin: 0 0 6px 0;
+  color: var(--text-dim);
+  font-size: 0.82em;
+}
+
+.preview-side ol,
+.preview-noface {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.preview-side li,
+.preview-noface li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 0.88em;
+}
+
+.preview-track-pos {
+  color: var(--text-dim);
+  min-width: 22px;
+  font-weight: 600;
+}
+
+.preview-track-title {
+  flex: 1;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-track-duration {
+  color: var(--text-dim);
+  font-size: 0.9em;
+}
+
+@media (max-width: 480px) {
+  .preview-sides {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ============================================

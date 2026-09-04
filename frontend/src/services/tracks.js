@@ -56,12 +56,26 @@ export async function fetchTracks(discId) {
   return parseJson(response)
 }
 
-// force=true remplace une tracklist déjà existante par une nouvelle
-// recherche Discogs (au lieu de ne rien faire si des pistes existent déjà).
-export async function fetchTracklistOnDemand(discId, force = false) {
-  const url = `${API_BASE_URL}/discs/${encodeURIComponent(discId)}/tracks/fetch${force ? '?force=true' : ''}`
-  const response = await fetch(url, {
+export async function fetchTracklistOnDemand(discId) {
+  const response = await fetch(`${API_BASE_URL}/discs/${encodeURIComponent(discId)}/tracks/fetch`, {
     method: 'POST',
+    headers: authHeaders({ Accept: 'application/json' }),
+  })
+
+  if (!response.ok) {
+    const message = await extractErrorMessage(response, 'Impossible de récupérer les pistes sur Discogs.')
+    throw new Error(message)
+  }
+
+  return parseJson(response)
+}
+
+// Recherche une tracklist sur Discogs sans la sauvegarder — pour
+// affichage/validation par l'utilisateur avant d'écraser une tracklist
+// existante (via updateTracks une fois validée).
+export async function previewTracklist(discId) {
+  const response = await fetch(`${API_BASE_URL}/discs/${encodeURIComponent(discId)}/tracks/preview`, {
+    method: 'GET',
     headers: authHeaders({ Accept: 'application/json' }),
   })
 

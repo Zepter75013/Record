@@ -411,28 +411,11 @@ func (s *DiscService) UpdateTracksForDisc(ctx context.Context, discID int, items
 	return s.trackRepo.FindByVinylID(ctx, discID)
 }
 
-// FetchTracklistForDisc récupère et stocke la tracklist d'un disque à la
-// demande — filet de rattrapage pour les disques ajoutés avant cette
-// fonctionnalité (pas de discogs_release_id connu, donc re-recherche par
-// titre/artiste, avec le même risque de mauvais pressage que la recherche
-// de pochette existante).
-//
-// force=false (usage normal) : ne fait rien si une tracklist existe déjà,
-// renvoie l'existante telle quelle.
-// force=true (rafraîchissement demandé explicitement par l'utilisateur) :
-// re-recherche sur Discogs et remplace la tracklist existante, y compris
-// si elle avait été saisie/modifiée manuellement.
-func (s *DiscService) FetchTracklistForDisc(ctx context.Context, discID int, force bool) ([]tracks.Track, error) {
-	if !force {
-		existing, err := s.trackRepo.FindByVinylID(ctx, discID)
-		if err != nil {
-			return nil, err
-		}
-		if len(existing) > 0 {
-			return existing, nil
-		}
-	}
-
+// searchDiscogsTracklist recherche la tracklist d'un disque sur Discogs à
+// partir de son titre/artiste (pas de discogs_release_id connu, donc même
+// risque de mauvais pressage que la recherche de pochette existante).
+// Lecture seule — n'écrit rien en base, laisse l'appelant décider.
+func (s *DiscService) searchDiscogsTracklist(ctx context.Context, discID int) ([]tracks.Track, error) {
 	disc, err := s.repo.FindByID(ctx, discID)
 	if err != nil {
 		return nil, err
@@ -458,17 +441,39 @@ func (s *DiscService) FetchTracklistForDisc(ctx context.Context, discID int, for
 	for i, t := range preview.Tracks {
 		trackList[i] = tracks.Track{Position: t.Position, Title: t.Title, Duration: t.Duration}
 	}
+	return trackList, nil
+}
 
-	if force {
-		if err := s.trackRepo.DeleteByVinylID(ctx, discID); err != nil {
-			return nil, err
-		}
+// FetchTracklistForDisc récupère et stocke la tracklist d'un disque à la
+// demande — filet de rattrapage pour les disques ajoutés avant cette
+// fonctionnalité. Ne fait rien si une tracklist existe déjà — voir
+// PreviewTracklistForDisc pour prévisualiser un remplacement avant de
+// l'appliquer (via UpdateTracksForDisc, une fois validé côté utilisateur).
+func (s *DiscService) FetchTracklistForDisc(ctx context.Context, discID int) ([]tracks.Track, error) {
+	existing, err := s.trackRepo.FindByVinylID(ctx, discID)
+	if err != nil {
+		return nil, err
+	}
+	if len(existing) > 0 {
+		return existing, nil
+	}
+
+	trackList, err := s.searchDiscogsTracklist(ctx, discID)
+	if err != nil {
+		return nil, err
 	}
 	if err := s.trackRepo.CreateBatch(ctx, discID, trackList); err != nil {
 		return nil, err
 	}
 
 	return s.trackRepo.FindByVinylID(ctx, discID)
+}
+
+// PreviewTracklistForDisc recherche une tracklist sur Discogs SANS la
+// sauvegarder, pour que l'utilisateur puisse voir la proposition avant de
+// valider (ou annuler) un remplacement de tracklist existante.
+func (s *DiscService) PreviewTracklistForDisc(ctx context.Context, discID int) ([]tracks.Track, error) {
+	return s.searchDiscogsTracklist(ctx, discID)
 }
 
 func (s *DiscService) searchDiscogsByBarcode(barcode string) (*CoverPreview, error) {
