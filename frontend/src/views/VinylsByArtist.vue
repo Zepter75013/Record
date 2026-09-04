@@ -236,9 +236,10 @@ const backToList = () => {
   vinylTracks.value = []
 }
 
-// Voir les détails d'un disque
+// Voir les détails d'un disque : ouvre la liste des disques avec sa
+// modale d'édition déjà ouverte (voir openDiscFromQuery dans DiscsView.vue)
 const viewVinylDetails = (vinyl) => {
-  router.push(`/dashboard/vinyls`)
+  router.push({ path: '/dashboard/vinyls', query: { edit: vinyl.id } })
 }
 
 const isTracklistModalOpen = ref(false)
