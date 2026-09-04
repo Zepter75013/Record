@@ -114,7 +114,7 @@ const loadVinylTracks = async (vinyl) => {
   }
   tracksLoading.value = true
   try {
-    vinylTracks.value = await fetchTracks(vinyl.id)
+    vinylTracks.value = (await fetchTracks(vinyl.id)) || []
   } catch (err) {
     console.error('❌ Erreur chargement pistes:', err)
     vinylTracks.value = []
@@ -131,7 +131,7 @@ const selectVinyl = (vinyl) => {
 // Répartit les pistes par face à partir du préfixe de position (A1, B2…) ;
 // si aucune position n'est renseignée, on coupe simplement la liste en deux.
 const tracksByFace = computed(() => {
-  const tracks = vinylTracks.value
+  const tracks = vinylTracks.value || []
   const hasPositions = tracks.some(t => /^[AB]/i.test(t.position || ''))
   if (hasPositions) {
     return {
