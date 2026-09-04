@@ -93,11 +93,28 @@ const artistVinyls = computed(() => {
   if (!selectedArtist.value) return []
   return vinyls.value.filter(vinyl => vinyl.artist_id === selectedArtist.value.id)
 })
+// Tri de la liste des albums d'un artiste : par année ou par nom
+const albumSortBy = ref('year') // 'year' | 'title'
+const albumSortDir = ref('asc') // 'asc' | 'desc'
+
+const setAlbumSort = (field) => {
+  if (albumSortBy.value === field) {
+    albumSortDir.value = albumSortDir.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    albumSortBy.value = field
+    albumSortDir.value = 'asc'
+  }
+}
+
 const sortedArtistVinyls = computed(() => {
+  const dir = albumSortDir.value === 'asc' ? 1 : -1
   return [...artistVinyls.value].sort((a, b) => {
+    if (albumSortBy.value === 'title') {
+      return (a.title || '').localeCompare(b.title || '') * dir
+    }
     const ay = a.release_year || 0
     const by = b.release_year || 0
-    if (ay !== by) return ay - by
+    if (ay !== by) return (ay - by) * dir
     return (a.title || '').localeCompare(b.title || '')
   })
 })
@@ -144,6 +161,32 @@ const tracksByFace = computed(() => {
 })
 const faceATracks = computed(() => tracksByFace.value.A)
 const faceBTracks = computed(() => tracksByFace.value.B)
+
+// Durées : les pistes stockent "mm:ss" (ou "h:mm:ss") en texte libre —
+// on convertit en secondes pour sommer, puis on reformate.
+const parseDuration = (str) => {
+  if (!str) return 0
+  const parts = str.split(':').map((n) => parseInt(n, 10))
+  if (parts.some((n) => Number.isNaN(n))) return 0
+  return parts.reduce((acc, val) => acc * 60 + val, 0)
+}
+
+const formatDuration = (totalSeconds) => {
+  if (!totalSeconds) return '—'
+  const h = Math.floor(totalSeconds / 3600)
+  const m = Math.floor((totalSeconds % 3600) / 60)
+  const s = totalSeconds % 60
+  const mm = h > 0 ? String(m).padStart(2, '0') : String(m)
+  const ss = String(s).padStart(2, '0')
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
+}
+
+const sumDuration = (tracks) => tracks.reduce((sum, t) => sum + parseDuration(t.duration), 0)
+const faceASeconds = computed(() => sumDuration(faceATracks.value))
+const faceBSeconds = computed(() => sumDuration(faceBTracks.value))
+const faceADuration = computed(() => formatDuration(faceASeconds.value))
+const faceBDuration = computed(() => formatDuration(faceBSeconds.value))
+const totalDuration = computed(() => formatDuration(faceASeconds.value + faceBSeconds.value))
 
 const formatPrice = (value) => {
   if (value === null || value === undefined || value === '') return '—'
@@ -474,6 +517,26 @@ onMounted(() => {
             <span>Albums</span>
             <span class="albums-count">{{ sortedArtistVinyls.length }}</span>
           </div>
+          <div class="albums-sort-controls">
+            <button
+              type="button"
+              class="album-sort-btn"
+              :class="{ active: albumSortBy === 'year' }"
+              @click="setAlbumSort('year')"
+            >
+              Année
+              <span v-if="albumSortBy === 'year'" class="sort-arrow">{{ albumSortDir === 'asc' ? '▲' : '▼' }}</span>
+            </button>
+            <button
+              type="button"
+              class="album-sort-btn"
+              :class="{ active: albumSortBy === 'title' }"
+              @click="setAlbumSort('title')"
+            >
+              Nom
+              <span v-if="albumSortBy === 'title'" class="sort-arrow">{{ albumSortDir === 'asc' ? '▲' : '▼' }}</span>
+            </button>
+          </div>
           <div class="albums-list">
             <button
               v-for="vinyl in sortedArtistVinyls"
@@ -555,7 +618,10 @@ onMounted(() => {
 
               <div class="tracklist-columns">
                 <div class="tracklist-face">
-                  <h4>Face A</h4>
+                  <h4>
+                    Face A
+                    <span v-if="faceASeconds" class="face-duration">({{ faceADuration }})</span>
+                  </h4>
                   <p v-if="tracksLoading" class="tracklist-loading">Chargement…</p>
                   <ol v-else-if="faceATracks.length">
                     <li v-for="(t, i) in faceATracks" :key="t.id ?? i">
@@ -567,7 +633,10 @@ onMounted(() => {
                   <p v-else class="tracklist-empty">Aucune piste</p>
                 </div>
                 <div class="tracklist-face">
-                  <h4>Face B</h4>
+                  <h4>
+                    Face B
+                    <span v-if="faceBSeconds" class="face-duration">({{ faceBDuration }})</span>
+                  </h4>
                   <p v-if="tracksLoading" class="tracklist-loading">Chargement…</p>
                   <ol v-else-if="faceBTracks.length">
                     <li v-for="(t, i) in faceBTracks" :key="t.id ?? i">
@@ -579,6 +648,9 @@ onMounted(() => {
                   <p v-else class="tracklist-empty">Aucune piste</p>
                 </div>
               </div>
+              <p v-if="!tracksLoading && (faceASeconds || faceBSeconds)" class="tracklist-grand-total">
+                Durée totale : <strong>{{ totalDuration }}</strong>
+              </p>
             </div>
 
             <div class="detail-side">
@@ -1072,6 +1144,45 @@ onMounted(() => {
   font-size: 0.9em;
 }
 
+.albums-sort-controls {
+  display: flex;
+  gap: 6px;
+  padding: 0 10px;
+  margin-bottom: 10px;
+}
+
+.album-sort-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 8px;
+  background: rgba(var(--tint-rgb), 0.04);
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-size: 0.8em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.album-sort-btn:hover {
+  background: rgba(var(--tint-rgb), 0.08);
+  color: var(--text);
+}
+
+.album-sort-btn.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-blue));
+  border-color: transparent;
+  color: white;
+}
+
+.sort-arrow {
+  font-size: 0.85em;
+}
+
 .album-list-item {
   display: flex;
   align-items: center;
@@ -1174,6 +1285,15 @@ onMounted(() => {
   margin: 0 0 8px 0;
   color: var(--text);
   font-size: 0.95em;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.face-duration {
+  color: var(--text-dim);
+  font-size: 0.8em;
+  font-weight: 400;
 }
 
 .tracklist-face ol {
@@ -1224,6 +1344,17 @@ onMounted(() => {
   font-size: 0.85em;
   padding: 10px 0;
   margin: 0;
+}
+
+.tracklist-grand-total {
+  margin: 12px 0 0 0;
+  text-align: right;
+  color: var(--text-dim);
+  font-size: 0.85em;
+}
+
+.tracklist-grand-total strong {
+  color: var(--text);
 }
 
 .detail-side {
