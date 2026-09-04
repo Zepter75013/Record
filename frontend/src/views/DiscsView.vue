@@ -4,12 +4,9 @@ import DiscsModal from '@/components/DiscsModal/DiscsModal.vue';
 import TracklistModal from '@/components/TracklistModal.vue';
 import CheckDiscModal from '@/components/CheckDiscModal.vue';
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
 import { useApi } from '@/composables/useApi';
 import { formatCurrency } from '@/utils/format';
 const { apiFetch } = useApi();
-const route = useRoute();
-const router = useRouter();
 // ✅ ÉTATS PRINCIPAUX
 const discs = ref([]);
 const apiError = ref(null);
@@ -456,7 +453,7 @@ showColumnMenu.value = false;
 onMounted(() => {
 window.addEventListener('resize', handleWindowResize);
 document.addEventListener('click', handleClickOutside);
-fetchDiscs().then(() => openDiscFromQuery());
+fetchDiscs();
 loadFilterOptions();
 
 // ⚡ Fonction de scroll ULTRA-optimisée - appel direct sans RAF
@@ -904,11 +901,6 @@ apiError.value = null;
 currentDisc.value = disc ? { ...disc } : null;
 isModalOpen.value = true;
 };
-// Si la modale a été ouverte via ?edit=<id> (deep-link depuis Disques par
-// Artistes), on garde le chemin d'où l'on vient pour y revenir à la
-// fermeture — sinon Annuler/Enregistrer laisse l'utilisateur sur la liste
-// brute des disques, ce qui n'a rien à voir avec l'écran qu'il a quitté.
-const returnPathAfterModal = ref(null);
 // ✅ FONCTION: Fermer modale
 const closeModal = () => {
 logger.debug('Fermeture de la modale');
@@ -916,30 +908,6 @@ apiError.value = null;
 isModalOpen.value = false;
 currentDisc.value = null;
 isSaving.value = false; // Réinitialiser l'état de sauvegarde
-if (returnPathAfterModal.value) {
-const target = returnPathAfterModal.value;
-returnPathAfterModal.value = null;
-router.push(target);
-}
-};
-// ✅ FONCTION: Ouvrir directement la modale d'édition via ?edit=<id> dans l'URL
-// (utilisé par le bouton "Modifier" de la fiche album dans Disques par Artistes)
-const openDiscFromQuery = () => {
-const editId = route.query.edit;
-if (!editId) return;
-const disc = discs.value.find((d) => String(d.id) === String(editId));
-if (disc) {
-openModal(disc);
-returnPathAfterModal.value = {
-path: '/dashboard/vinyls/by-artist',
-query: { artist: disc.artist_id, disc: disc.id }
-};
-} else {
-logger.error('Disque non trouvé pour édition via URL (ID:', editId, ')');
-apiError.value = `Disque non trouvé (ID: ${editId})`;
-}
-// Nettoyer le paramètre pour ne pas rouvrir la modale à un refresh/retour arrière
-router.replace({ query: { ...route.query, edit: undefined } });
 };
 // ✅ FONCTION: Édition depuis code-barres
 const handleEditExistingDisc = (discId) => {

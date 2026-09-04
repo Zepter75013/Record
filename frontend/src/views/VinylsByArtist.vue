@@ -1,16 +1,16 @@
 <!-- VinylsByArtist.vue -->
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useApi } from '@/composables/useApi'
 import StreamingButtons from '@/components/StreamingButtons.vue'
 import TracklistModal from '@/components/TracklistModal.vue'
+import DiscsModal from '@/components/DiscsModal/DiscsModal.vue'
 import { fetchTracks } from '@/services/tracks'
 import { formatCurrency } from '@/utils/format'
 import { groupTracksByDiscSide } from '@/utils/discSides'
 
 const router = useRouter()
-const route = useRoute()
 const { apiFetch } = useApi()
 
 // États
@@ -244,25 +244,6 @@ const fetchArtists = async () => {
   }
 }
 
-// Restaure l'artiste/album sélectionnés au retour de la modale d'édition
-// (voir ?artist=&disc= poussés par DiscsView.vue à la fermeture) — sans ça
-// "Annuler"/"Enregistrer" renvoie sur la liste des artistes au lieu de
-// l'écran précis quitté en cliquant "Modifier".
-const restoreSelectionFromQuery = () => {
-  const artistId = route.query.artist
-  const discId = route.query.disc
-  if (!artistId) return
-
-  const artist = artists.value.find((a) => String(a.id) === String(artistId))
-  if (artist) {
-    selectedArtist.value = artist
-    const vinyl = discId ? vinyls.value.find((v) => String(v.id) === String(discId)) : null
-    selectVinyl(vinyl || sortedArtistVinyls.value[0] || null)
-  }
-
-  router.replace({ query: { ...route.query, artist: undefined, disc: undefined } })
-}
-
 // Sélectionner un artiste
 const selectArtist = (artist) => {
   selectedArtist.value = artist
@@ -277,10 +258,66 @@ const backToList = () => {
   vinylTracks.value = []
 }
 
-// Voir les détails d'un disque : ouvre la liste des disques avec sa
-// modale d'édition déjà ouverte (voir openDiscFromQuery dans DiscsView.vue)
+// Édition d'un disque : ouvre la modale directement sur cet écran (pas de
+// navigation vers la liste des disques, pour ne pas perdre le contexte
+// artiste/album affiché derrière).
+const isEditModalOpen = ref(false)
+const editDisc = ref(null)
+const isSavingDisc = ref(false)
+const editApiError = ref(null)
+
 const viewVinylDetails = (vinyl) => {
-  router.push({ path: '/dashboard/vinyls', query: { edit: vinyl.id } })
+  editApiError.value = null
+  editDisc.value = { ...vinyl }
+  isEditModalOpen.value = true
+}
+
+const closeEditModal = () => {
+  editApiError.value = null
+  isEditModalOpen.value = false
+  editDisc.value = null
+  isSavingDisc.value = false
+}
+
+const saveEditedDisc = async (formData) => {
+  editApiError.value = null
+  isSavingDisc.value = true
+  try {
+    const body = {
+      title: formData.title?.trim() || '',
+      artist_id: formData.artist_id || null,
+      genre_id: formData.genre_id || null,
+      format_id: formData.format_id || null,
+      country_id: formData.country_id || null,
+      label_id: formData.label_id || null,
+      release_year: formData.release_year ? parseInt(formData.release_year) : null,
+      barcode: formData.barcode?.trim() || null,
+      price: formData.price !== undefined && formData.price !== '' ? parseFloat(formData.price) : null,
+      quantity: formData.quantity !== undefined && formData.quantity !== '' ? parseInt(formData.quantity) : 1,
+      notes: formData.notes?.trim() || null,
+      isrc: formData.isrc?.trim() || null
+    }
+    if (formData.cover_image === '') body.cover_image = ''
+    else if (formData.cover_image) body.cover_image = formData.cover_image
+
+    const result = await apiFetch(`discs/${formData.id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' }
+    })
+
+    // Remplace la version locale (liste + fiche affichée) par le disque à
+    // jour renvoyé par l'API (déjà enrichi des noms artiste/genre/etc.).
+    const index = vinyls.value.findIndex((v) => v.id === result.id)
+    if (index !== -1) vinyls.value.splice(index, 1, result)
+    if (selectedVinyl.value?.id === result.id) selectedVinyl.value = result
+
+    closeEditModal()
+  } catch (err) {
+    editApiError.value = err.message || 'Erreur lors de la sauvegarde du disque'
+  } finally {
+    isSavingDisc.value = false
+  }
 }
 
 const isTracklistModalOpen = ref(false)
@@ -424,7 +461,7 @@ const startResize = (e) => {
 }
 
 onMounted(() => {
-  fetchArtists().then(() => restoreSelectionFromQuery())
+  fetchArtists()
 })
 </script>
 
@@ -773,6 +810,15 @@ onMounted(() => {
       v-model="isTracklistModalOpen"
       :disc="vinylForTracklist"
       @tracks-updated="handleTracksUpdated"
+    />
+
+    <DiscsModal
+      :is-open="isEditModalOpen"
+      :disc-data="editDisc"
+      :api-error="editApiError"
+      :is-saving="isSavingDisc"
+      @close="closeEditModal"
+      @save="saveEditedDisc"
     />
   </div>
 </template>
