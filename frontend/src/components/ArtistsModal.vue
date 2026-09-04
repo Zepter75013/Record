@@ -77,6 +77,16 @@
                       <span class="icon">+</span>
                     </button>
                   </div>
+                  <button
+                    v-if="isEditing"
+                    type="button"
+                    @click="suggestCountry"
+                    class="suggest-country-button"
+                    :disabled="saving || suggestingCountry"
+                  >
+                    {{ suggestingCountry ? '⏳ Recherche…' : '🔄 Suggérer automatiquement (MusicBrainz)' }}
+                  </button>
+                  <div v-if="suggestCountryError" class="form-error">{{ suggestCountryError }}</div>
                 </label>
 
                 <label class="form-field form-field-full">
@@ -236,6 +246,8 @@ const duplicateArtistName = ref('');
 const overlayMouseDownTarget = ref(null); // Pour éviter fermeture lors de sélection texte
 const countries = ref([]);
 const isCountryModalOpen = ref(false);
+const suggestingCountry = ref(false);
+const suggestCountryError = ref(null);
 
 // Données du formulaire
 const formData = ref({
@@ -274,6 +286,27 @@ const handleCountrySaved = (savedCountry) => {
   }
   formData.value.country_id = savedCountry.id;
   isCountryModalOpen.value = false;
+};
+
+// Suggère le pays de l'artiste via MusicBrainz — remplit juste le champ,
+// ne sauvegarde rien tant que l'utilisateur ne clique pas sur "Mettre à
+// jour" (pour ne pas écraser d'autres modifications en cours de saisie).
+const suggestCountry = async () => {
+  if (!formData.value.id) return;
+  suggestingCountry.value = true;
+  suggestCountryError.value = null;
+  try {
+    const suggestion = await post(`/artists/${formData.value.id}/country/suggest`);
+    if (!countries.value.some((c) => c.id === suggestion.country_id)) {
+      countries.value.push({ id: suggestion.country_id, name: suggestion.name, code: suggestion.code });
+    }
+    formData.value.country_id = suggestion.country_id;
+  } catch (error) {
+    console.error('Erreur suggestion pays:', error);
+    suggestCountryError.value = error.message || 'Impossible de trouver le pays de cet artiste';
+  } finally {
+    suggestingCountry.value = false;
+  }
 };
 
 // Chargement des statistiques (en édition)
@@ -644,6 +677,29 @@ watch(() => props.artistData, (newData) => {
 }
 
 .create-country-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.suggest-country-button {
+  margin-top: 8px;
+  padding: 8px 14px;
+  background: rgba(var(--tint-rgb), 0.05);
+  color: var(--accent-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 0.85em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.suggest-country-button:hover:not(:disabled) {
+  background: rgba(var(--tint-rgb), 0.09);
+  color: var(--accent);
+}
+
+.suggest-country-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

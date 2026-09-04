@@ -112,6 +112,28 @@ func (h *ArtistHandler) DeleteArtist(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// SuggestArtistCountry - Propose un pays pour l'artiste via MusicBrainz
+// (ne modifie pas l'artiste, voir ArtistService.SuggestCountryForArtist).
+func (h *ArtistHandler) SuggestArtistCountry(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "ID invalide", http.StatusBadRequest)
+		return
+	}
+
+	suggestion, err := h.service.SuggestCountryForArtist(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(suggestion)
+}
+
 // GetArtistByID - Récupère un artiste par son ID
 func (h *ArtistHandler) GetArtistByID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)

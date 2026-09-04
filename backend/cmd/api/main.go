@@ -348,7 +348,7 @@ func main() {
 	passwordResetService := userservice.NewPasswordResetService(userRepository, resetTokenRepo, emailService) // 🆕 AJOUTÉ
 	formatService := formatservice.NewFormatService(formatRepository)
 	genreService := genreservice.NewGenreService(genreRepository)
-	artistService := artistservice.NewArtistService(artistRepository)
+	artistService := artistservice.NewArtistService(artistRepository, countryRepository)
 	countryService := countryservice.NewCountryService(countryRepository)
 	labelService := labelservice.NewLabelService(labelRepository)
 	statsService := statsservice.NewStatsService(statsRepository)
@@ -471,6 +471,7 @@ func main() {
 	r.HandleFunc("/api/artists/{id}", artistHandler.GetArtistByID).Methods("GET")
 	r.HandleFunc("/api/artists/{id}", artistHandler.UpdateArtist).Methods("PUT")
 	r.HandleFunc("/api/artists/{id}", artistHandler.DeleteArtist).Methods("DELETE")
+	r.HandleFunc("/api/artists/{id}/country/suggest", artistHandler.SuggestArtistCountry).Methods("POST")
 
 	// Countries
 	r.HandleFunc("/api/countries", countryHandler.GetAllCountries).Methods("GET")
