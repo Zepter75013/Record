@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -441,7 +442,41 @@ func (s *DiscService) searchDiscogsTracklist(ctx context.Context, discID int) ([
 	for i, t := range preview.Tracks {
 		trackList[i] = tracks.Track{Position: t.Position, Title: t.Title, Duration: t.Duration}
 	}
+
+	// Discogs laisse souvent la durée vide (champ facultatif, mal renseigné
+	// par la communauté) — on complète via une recherche de titre Deezer
+	// (API publique, sans clé) qui renvoie une durée exacte en secondes.
+	s.fillMissingDurationsFromDeezer(disc.ArtistName, trackList)
+
 	return trackList, nil
+}
+
+type deezerTrackSearchResult struct {
+	Data []struct {
+		Duration int `json:"duration"`
+	} `json:"data"`
+}
+
+func (s *DiscService) fillMissingDurationsFromDeezer(artistName string, trackList []tracks.Track) {
+	client := &http.Client{Timeout: 8 * time.Second}
+	for i := range trackList {
+		if trackList[i].Duration != "" {
+			continue
+		}
+		query := url.QueryEscape(strings.TrimSpace(artistName + " " + trackList[i].Title))
+		resp, err := client.Get("https://api.deezer.com/search/track?limit=1&q=" + query)
+		if err != nil {
+			continue
+		}
+		var result deezerTrackSearchResult
+		decodeErr := json.NewDecoder(resp.Body).Decode(&result)
+		resp.Body.Close()
+		if decodeErr != nil || len(result.Data) == 0 || result.Data[0].Duration <= 0 {
+			continue
+		}
+		seconds := result.Data[0].Duration
+		trackList[i].Duration = fmt.Sprintf("%d:%02d", seconds/60, seconds%60)
+	}
 }
 
 // FetchTracklistForDisc récupère et stocke la tracklist d'un disque à la
