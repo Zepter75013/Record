@@ -8,7 +8,7 @@ import TracklistModal from '@/components/TracklistModal.vue'
 import DiscsModal from '@/components/DiscsModal/DiscsModal.vue'
 import { fetchTracks, previewTracklist, updateTracks } from '@/services/tracks'
 import { formatCurrency } from '@/utils/format'
-import { groupTracksByDiscSide } from '@/utils/discSides'
+import { groupTracksByDiscSide, isCdFormat } from '@/utils/discSides'
 
 const router = useRouter()
 const { apiFetch } = useApi()
@@ -202,6 +202,10 @@ const applyTracklistPreview = async () => {
 // position (convention coffret : disque 1 = A/B, disque 2 = C/D…).
 const trackGroups = computed(() => groupTracksByDiscSide(vinylTracks.value || []))
 const isMultiDisc = computed(() => trackGroups.value.discs.length > 1)
+
+// Un CD n'a pas de face — jamais de regroupement Face A/B ni Disque N,
+// juste la liste des pistes dans l'ordre.
+const isCd = computed(() => isCdFormat(selectedVinyl.value?.format_name))
 
 // Cas standard (0 ou 1 disque détecté) : affichage Face A / Face B classique.
 const singleDiscSides = computed(() => {
@@ -753,7 +757,21 @@ onMounted(() => {
                 </div>
               </div>
 
-              <div v-if="!isMultiDisc" class="tracklist-columns">
+              <div v-if="isCd" class="tracklist-face">
+                <h4>Pistes</h4>
+                <p v-if="tracksLoading" class="tracklist-loading">Chargement…</p>
+                <ol v-else-if="vinylTracks.length">
+                  <li v-for="(t, i) in vinylTracks" :key="t.id ?? i">
+                    <span class="track-pos">{{ t.position || i + 1 }}</span>
+                    <span class="track-title">{{ t.title }}</span>
+                    <span class="track-duration" v-if="t.duration">{{ t.duration }}</span>
+                    <StreamingButtons :disc="selectedVinyl" :track="t" inline />
+                  </li>
+                </ol>
+                <p v-else class="tracklist-empty">Aucune piste</p>
+              </div>
+
+              <div v-else-if="!isMultiDisc" class="tracklist-columns">
                 <div class="tracklist-face">
                   <h4>
                     Face A

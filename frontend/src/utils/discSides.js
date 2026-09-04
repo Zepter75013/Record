@@ -5,6 +5,13 @@
 
 const FACE_REGEX = /^([A-Z])/i
 
+// Les CD n'ont pas de "face" (contrairement au vinyle) — un disque au
+// format CD doit toujours s'afficher/s'éditer en liste plate, jamais
+// groupée par Face A/B.
+export function isCdFormat(formatName) {
+  return /\bcd\b/i.test(formatName || '')
+}
+
 export function letterToDisc(letter) {
   if (!letter) return null
   const index = letter.toUpperCase().charCodeAt(0) - 65 // A=0, B=1, C=2…

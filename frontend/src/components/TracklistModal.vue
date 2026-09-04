@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { fetchTracks, fetchTracklistOnDemand, updateTracks } from '../services/tracks'
-import { groupTracksByDiscSide, discSideToLetter } from '../utils/discSides'
+import { groupTracksByDiscSide, discSideToLetter, isCdFormat } from '../utils/discSides'
 import StreamingButtons from './StreamingButtons.vue'
 
 const props = defineProps({
@@ -23,12 +23,16 @@ const tracks = ref([])
 // pas la convention lettre de face (évite de les perdre en cas d'édition).
 const editableDiscs = ref([])
 const editableOther = ref([])
+// Un CD n'a pas de face : édition/affichage en liste plate (voir isCd).
+const editableFlatTracks = ref([])
 const isEditing = ref(false)
 const isLoading = ref(false)
 const isFetching = ref(false)
 const isSaving = ref(false)
 const error = ref(null)
 const hasLoaded = ref(false)
+
+const isCd = computed(() => isCdFormat(props.disc?.format_name))
 
 // Regroupement pour l'affichage (lecture seule) : Disque N > Face A/B.
 const groupedTracks = computed(() => groupTracksByDiscSide(tracks.value))
@@ -82,6 +86,18 @@ function emptyDisc(discNumber) {
 }
 
 function startEditing() {
+  if (isCd.value) {
+    editableFlatTracks.value = tracks.value.length
+      ? tracks.value.map((t, i) => ({
+          position: t.position || String(i + 1),
+          title: t.title || '',
+          duration: t.duration || '',
+        }))
+      : [{ position: '1', title: '', duration: '' }]
+    isEditing.value = true
+    return
+  }
+
   const { discs, noFace } = groupedTracks.value
   editableDiscs.value = discs.length
     ? discs.map((d) => ({
@@ -102,6 +118,14 @@ function startEditing() {
     duration: t.duration || '',
   }))
   isEditing.value = true
+}
+
+function addFlatTrack() {
+  editableFlatTracks.value.push({ position: String(editableFlatTracks.value.length + 1), title: '', duration: '' })
+}
+
+function removeFlatTrack(index) {
+  editableFlatTracks.value.splice(index, 1)
 }
 
 function cancelEditing() {
@@ -138,23 +162,33 @@ function removeOtherTrack(index) {
 
 async function saveTracks() {
   if (!props.disc?.id) return
-  const flattened = []
-  for (const d of editableDiscs.value) {
-    for (const side of ['A', 'B']) {
-      d.sides[side].forEach((t, i) => {
-        if (t.title && t.title.trim() !== '') {
-          flattened.push({
-            position: discSideToLetter(d.disc, side) + (i + 1),
-            title: t.title.trim(),
-            duration: t.duration || '',
-          })
-        }
-      })
+  let flattened = []
+  if (isCd.value) {
+    flattened = editableFlatTracks.value
+      .filter((t) => t.title && t.title.trim() !== '')
+      .map((t, i) => ({
+        position: t.position?.trim() || String(i + 1),
+        title: t.title.trim(),
+        duration: t.duration || '',
+      }))
+  } else {
+    for (const d of editableDiscs.value) {
+      for (const side of ['A', 'B']) {
+        d.sides[side].forEach((t, i) => {
+          if (t.title && t.title.trim() !== '') {
+            flattened.push({
+              position: discSideToLetter(d.disc, side) + (i + 1),
+              title: t.title.trim(),
+              duration: t.duration || '',
+            })
+          }
+        })
+      }
     }
-  }
-  for (const t of editableOther.value) {
-    if (t.title && t.title.trim() !== '') {
-      flattened.push({ position: t.position || '', title: t.title.trim(), duration: t.duration || '' })
+    for (const t of editableOther.value) {
+      if (t.title && t.title.trim() !== '') {
+        flattened.push({ position: t.position || '', title: t.title.trim(), duration: t.duration || '' })
+      }
     }
   }
   isSaving.value = true
@@ -210,6 +244,50 @@ function getImageUrl(path, cacheBuster = null) {
       <div v-else-if="error" class="tracklist-state tracklist-error">{{ error }}</div>
 
       <template v-else-if="isEditing">
+      <template v-if="isCd">
+        <ol class="tracklist-list tracklist-edit-list">
+          <li
+            v-for="(track, index) in editableFlatTracks"
+            :key="index"
+            class="tracklist-edit-item tracklist-edit-item-other"
+          >
+            <input
+              v-model="track.position"
+              class="tracklist-input tracklist-input-position"
+              type="text"
+              placeholder="1"
+              aria-label="Position"
+            />
+            <input
+              v-model="track.title"
+              class="tracklist-input tracklist-input-title"
+              type="text"
+              placeholder="Titre de la piste"
+              aria-label="Titre"
+            />
+            <input
+              v-model="track.duration"
+              class="tracklist-input tracklist-input-duration"
+              type="text"
+              placeholder="--:--"
+              aria-label="Durée"
+            />
+            <button
+              type="button"
+              class="tracklist-remove-btn"
+              :aria-label="`Supprimer la piste ${index + 1}`"
+              @click="removeFlatTrack(index)"
+            >
+              🗑️
+            </button>
+          </li>
+        </ol>
+        <button type="button" class="ghost-btn tracklist-add-btn" @click="addFlatTrack">
+          ➕ Ajouter une piste
+        </button>
+      </template>
+
+      <template v-else>
         <div class="disc-groups">
           <div v-for="(d, discIndex) in editableDiscs" :key="discIndex" class="disc-group">
             <div class="disc-group-header">
@@ -300,9 +378,10 @@ function getImageUrl(path, cacheBuster = null) {
           </ol>
         </template>
       </template>
+      </template>
 
       <template v-else-if="tracks.length">
-        <div v-if="groupedTracks.discs.length > 1" class="disc-groups">
+        <div v-if="!isCd && groupedTracks.discs.length > 1" class="disc-groups">
           <div v-for="d in groupedTracks.discs" :key="d.disc" class="disc-group">
             <h3>Disque {{ d.disc }}</h3>
             <div class="side-columns">
