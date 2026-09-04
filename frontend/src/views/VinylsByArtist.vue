@@ -7,6 +7,7 @@ import StreamingButtons from '@/components/StreamingButtons.vue'
 import TracklistModal from '@/components/TracklistModal.vue'
 import { fetchTracks } from '@/services/tracks'
 import { formatCurrency } from '@/utils/format'
+import { groupTracksByDiscSide } from '@/utils/discSides'
 
 const router = useRouter()
 const { apiFetch } = useApi()
@@ -145,22 +146,27 @@ const selectVinyl = (vinyl) => {
   loadVinylTracks(vinyl)
 }
 
-// Répartit les pistes par face à partir du préfixe de position (A1, B2…) ;
-// si aucune position n'est renseignée, on coupe simplement la liste en deux.
-const tracksByFace = computed(() => {
-  const tracks = vinylTracks.value || []
-  const hasPositions = tracks.some(t => /^[AB]/i.test(t.position || ''))
-  if (hasPositions) {
+// Regroupe les pistes par disque puis par face (A/B) selon la lettre de
+// position (convention coffret : disque 1 = A/B, disque 2 = C/D…).
+const trackGroups = computed(() => groupTracksByDiscSide(vinylTracks.value || []))
+const isMultiDisc = computed(() => trackGroups.value.discs.length > 1)
+
+// Cas standard (0 ou 1 disque détecté) : affichage Face A / Face B classique.
+const singleDiscSides = computed(() => {
+  const { discs, noFace } = trackGroups.value
+  if (discs.length === 1) {
     return {
-      A: tracks.filter(t => /^A/i.test(t.position || '')),
-      B: tracks.filter(t => /^B/i.test(t.position || ''))
+      A: discs[0].sides.find((s) => s.side === 'A').tracks,
+      B: discs[0].sides.find((s) => s.side === 'B').tracks
     }
   }
-  const mid = Math.ceil(tracks.length / 2)
-  return { A: tracks.slice(0, mid), B: tracks.slice(mid) }
+  // Aucune face reconnaissable dans les positions : repli sur un partage
+  // 50/50 (comportement historique pour d'anciennes données en texte libre).
+  const mid = Math.ceil(noFace.length / 2)
+  return { A: noFace.slice(0, mid), B: noFace.slice(mid) }
 })
-const faceATracks = computed(() => tracksByFace.value.A)
-const faceBTracks = computed(() => tracksByFace.value.B)
+const faceATracks = computed(() => singleDiscSides.value.A)
+const faceBTracks = computed(() => singleDiscSides.value.B)
 
 // Durées : les pistes stockent "mm:ss" (ou "h:mm:ss") en texte libre —
 // on convertit en secondes pour sommer, puis on reformate.
@@ -186,7 +192,22 @@ const faceASeconds = computed(() => sumDuration(faceATracks.value))
 const faceBSeconds = computed(() => sumDuration(faceBTracks.value))
 const faceADuration = computed(() => formatDuration(faceASeconds.value))
 const faceBDuration = computed(() => formatDuration(faceBSeconds.value))
-const totalDuration = computed(() => formatDuration(faceASeconds.value + faceBSeconds.value))
+
+// Durée totale de l'album, tous disques confondus.
+const grandTotalSeconds = computed(() => sumDuration(vinylTracks.value || []))
+const totalDuration = computed(() => formatDuration(grandTotalSeconds.value))
+
+// Affichage multi-disque : chaque face porte sa propre durée.
+const discsWithDuration = computed(() =>
+  trackGroups.value.discs.map((d) => ({
+    disc: d.disc,
+    sides: d.sides.map((s) => ({
+      ...s,
+      seconds: sumDuration(s.tracks),
+      duration: formatDuration(sumDuration(s.tracks))
+    }))
+  }))
+)
 
 const formatPrice = (value) => {
   if (value === null || value === undefined || value === '') return '—'
@@ -251,6 +272,12 @@ const openTracklistModal = (vinyl) => {
 const handleTracksUpdated = ({ discId, hasTracks }) => {
   const vinyl = vinyls.value.find((v) => v.id === discId)
   if (vinyl) vinyl.has_tracks = hasTracks
+  // Rafraîchit la fiche détaillée si c'est justement l'album affiché dont
+  // les pistes viennent d'être modifiées (sinon elle reste sur l'ancienne
+  // liste tant qu'on ne resélectionne pas l'album).
+  if (selectedVinyl.value?.id === discId) {
+    loadVinylTracks(selectedVinyl.value)
+  }
 }
 
 // Normaliser l'URL de la pochette — même logique que getImageUrl de
@@ -617,7 +644,7 @@ onMounted(() => {
                 </div>
               </div>
 
-              <div class="tracklist-columns">
+              <div v-if="!isMultiDisc" class="tracklist-columns">
                 <div class="tracklist-face">
                   <h4>
                     Face A
@@ -649,7 +676,31 @@ onMounted(() => {
                   <p v-else class="tracklist-empty">Aucune piste</p>
                 </div>
               </div>
-              <p v-if="!tracksLoading && (faceASeconds || faceBSeconds)" class="tracklist-grand-total">
+
+              <div v-else class="disc-groups">
+                <div v-for="d in discsWithDuration" :key="d.disc" class="disc-group-block">
+                  <h4 class="disc-group-title">Disque {{ d.disc }}</h4>
+                  <div class="tracklist-columns">
+                    <div v-for="s in d.sides" :key="s.letter" class="tracklist-face">
+                      <h4>
+                        Face {{ s.letter }}
+                        <span v-if="s.seconds" class="face-duration">({{ s.duration }})</span>
+                      </h4>
+                      <p v-if="tracksLoading" class="tracklist-loading">Chargement…</p>
+                      <ol v-else-if="s.tracks.length">
+                        <li v-for="(t, i) in s.tracks" :key="t.id ?? i">
+                          <span class="track-pos">{{ t.position || i + 1 }}</span>
+                          <span class="track-title">{{ t.title }}</span>
+                          <span class="track-duration" v-if="t.duration">{{ t.duration }}</span>
+                        </li>
+                      </ol>
+                      <p v-else class="tracklist-empty">Aucune piste</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <p v-if="!tracksLoading && grandTotalSeconds" class="tracklist-grand-total">
                 Durée totale : <strong>{{ totalDuration }}</strong>
               </p>
             </div>
@@ -1356,6 +1407,26 @@ onMounted(() => {
 
 .tracklist-grand-total strong {
   color: var(--text);
+}
+
+.disc-groups {
+  display: grid;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.disc-group-block {
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(var(--tint-rgb), 0.02);
+}
+
+.disc-group-title {
+  margin: 0 0 8px 0;
+  color: var(--text);
+  font-size: 0.9em;
+  font-weight: 600;
 }
 
 .detail-side {

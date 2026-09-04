@@ -1,6 +1,7 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { fetchTracks, fetchTracklistOnDemand, updateTracks } from '../services/tracks'
+import { groupTracksByDiscSide, discSideToLetter } from '../utils/discSides'
 
 const props = defineProps({
   modelValue: {
@@ -16,13 +17,20 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'tracks-updated'])
 
 const tracks = ref([])
-const editableTracks = ref([])
+// Édition structurée par disque puis par face (A/B) — voir startEditing().
+// editableOther recueille les pistes existantes dont la position ne suit
+// pas la convention lettre de face (évite de les perdre en cas d'édition).
+const editableDiscs = ref([])
+const editableOther = ref([])
 const isEditing = ref(false)
 const isLoading = ref(false)
 const isFetching = ref(false)
 const isSaving = ref(false)
 const error = ref(null)
 const hasLoaded = ref(false)
+
+// Regroupement pour l'affichage (lecture seule) : Disque N > Face A/B.
+const groupedTracks = computed(() => groupTracksByDiscSide(tracks.value))
 
 watch(
   () => props.modelValue,
@@ -68,10 +76,30 @@ async function fetchFromDiscogs() {
   }
 }
 
+function emptyDisc(discNumber) {
+  return { disc: discNumber, sides: { A: [{ title: '', duration: '' }], B: [] } }
+}
+
 function startEditing() {
-  editableTracks.value = tracks.value.length
-    ? tracks.value.map((t) => ({ position: t.position || '', title: t.title || '', duration: t.duration || '' }))
-    : [{ position: '', title: '', duration: '' }]
+  const { discs, noFace } = groupedTracks.value
+  editableDiscs.value = discs.length
+    ? discs.map((d) => ({
+        disc: d.disc,
+        sides: {
+          A: d.sides
+            .find((s) => s.side === 'A')
+            .tracks.map((t) => ({ title: t.title || '', duration: t.duration || '' })),
+          B: d.sides
+            .find((s) => s.side === 'B')
+            .tracks.map((t) => ({ title: t.title || '', duration: t.duration || '' })),
+        },
+      }))
+    : [emptyDisc(1)]
+  editableOther.value = noFace.map((t) => ({
+    position: t.position || '',
+    title: t.title || '',
+    duration: t.duration || '',
+  }))
   isEditing.value = true
 }
 
@@ -79,21 +107,59 @@ function cancelEditing() {
   isEditing.value = false
 }
 
-function addTrackRow() {
-  editableTracks.value.push({ position: '', title: '', duration: '' })
+function addDisc() {
+  const nextNumber = editableDiscs.value.reduce((max, d) => Math.max(max, d.disc), 0) + 1
+  editableDiscs.value.push(emptyDisc(nextNumber))
 }
 
-function removeTrackRow(index) {
-  editableTracks.value.splice(index, 1)
+function removeDisc(discIndex) {
+  const d = editableDiscs.value[discIndex]
+  const hasContent = [...d.sides.A, ...d.sides.B].some((t) => t.title && t.title.trim() !== '')
+  if (hasContent && !window.confirm(`Supprimer le disque ${d.disc} et toutes ses pistes ?`)) return
+  editableDiscs.value.splice(discIndex, 1)
+}
+
+function addTrack(discIndex, side) {
+  editableDiscs.value[discIndex].sides[side].push({ title: '', duration: '' })
+}
+
+function removeTrack(discIndex, side, trackIndex) {
+  editableDiscs.value[discIndex].sides[side].splice(trackIndex, 1)
+}
+
+function addOtherTrack() {
+  editableOther.value.push({ position: '', title: '', duration: '' })
+}
+
+function removeOtherTrack(index) {
+  editableOther.value.splice(index, 1)
 }
 
 async function saveTracks() {
   if (!props.disc?.id) return
-  const cleaned = editableTracks.value.filter((t) => t.title && t.title.trim() !== '')
+  const flattened = []
+  for (const d of editableDiscs.value) {
+    for (const side of ['A', 'B']) {
+      d.sides[side].forEach((t, i) => {
+        if (t.title && t.title.trim() !== '') {
+          flattened.push({
+            position: discSideToLetter(d.disc, side) + (i + 1),
+            title: t.title.trim(),
+            duration: t.duration || '',
+          })
+        }
+      })
+    }
+  }
+  for (const t of editableOther.value) {
+    if (t.title && t.title.trim() !== '') {
+      flattened.push({ position: t.position || '', title: t.title.trim(), duration: t.duration || '' })
+    }
+  }
   isSaving.value = true
   error.value = null
   try {
-    const result = await updateTracks(props.disc.id, cleaned)
+    const result = await updateTracks(props.disc.id, flattened)
     tracks.value = result || []
     isEditing.value = false
     emit('tracks-updated', { discId: props.disc.id, hasTracks: tracks.value.length > 0 })
@@ -143,51 +209,123 @@ function getImageUrl(path, cacheBuster = null) {
       <div v-else-if="error" class="tracklist-state tracklist-error">{{ error }}</div>
 
       <template v-else-if="isEditing">
-        <ol class="tracklist-list tracklist-edit-list">
-          <li v-for="(track, index) in editableTracks" :key="index" class="tracklist-edit-item">
-            <input
-              v-model="track.position"
-              class="tracklist-input tracklist-input-position"
-              type="text"
-              placeholder="A1"
-              aria-label="Position"
-            />
-            <input
-              v-model="track.title"
-              class="tracklist-input tracklist-input-title"
-              type="text"
-              placeholder="Titre de la piste"
-              aria-label="Titre"
-            />
-            <input
-              v-model="track.duration"
-              class="tracklist-input tracklist-input-duration"
-              type="text"
-              placeholder="--:--"
-              aria-label="Durée"
-            />
-            <button
-              type="button"
-              class="tracklist-remove-btn"
-              :aria-label="`Supprimer la piste ${index + 1}`"
-              @click="removeTrackRow(index)"
-            >
-              🗑️
-            </button>
-          </li>
-        </ol>
-        <button type="button" class="ghost-btn tracklist-add-btn" @click="addTrackRow">
-          ➕ Ajouter une piste
+        <div class="disc-groups">
+          <div v-for="(d, discIndex) in editableDiscs" :key="discIndex" class="disc-group">
+            <div class="disc-group-header">
+              <h3>Disque {{ d.disc }}</h3>
+              <button
+                type="button"
+                class="tracklist-remove-btn"
+                :aria-label="`Supprimer le disque ${d.disc}`"
+                @click="removeDisc(discIndex)"
+              >
+                🗑️
+              </button>
+            </div>
+            <div class="side-columns">
+              <div v-for="side in ['A', 'B']" :key="side" class="side-column">
+                <h4>Face {{ discSideToLetter(d.disc, side) }}</h4>
+                <ol class="tracklist-list tracklist-edit-list">
+                  <li v-for="(track, trackIndex) in d.sides[side]" :key="trackIndex" class="tracklist-edit-item">
+                    <input
+                      v-model="track.title"
+                      class="tracklist-input tracklist-input-title"
+                      type="text"
+                      placeholder="Titre de la piste"
+                      aria-label="Titre"
+                    />
+                    <input
+                      v-model="track.duration"
+                      class="tracklist-input tracklist-input-duration"
+                      type="text"
+                      placeholder="--:--"
+                      aria-label="Durée"
+                    />
+                    <button
+                      type="button"
+                      class="tracklist-remove-btn"
+                      :aria-label="`Supprimer la piste ${trackIndex + 1}`"
+                      @click="removeTrack(discIndex, side, trackIndex)"
+                    >
+                      🗑️
+                    </button>
+                  </li>
+                </ol>
+                <button type="button" class="ghost-btn tracklist-add-btn small" @click="addTrack(discIndex, side)">
+                  ➕ Piste
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button type="button" class="ghost-btn tracklist-add-btn" @click="addDisc">
+          ➕ Ajouter un disque
         </button>
+
+        <template v-if="editableOther.length">
+          <h3 class="other-tracks-title">Autres pistes (position libre)</h3>
+          <ol class="tracklist-list tracklist-edit-list">
+            <li v-for="(track, index) in editableOther" :key="index" class="tracklist-edit-item tracklist-edit-item-other">
+              <input
+                v-model="track.position"
+                class="tracklist-input tracklist-input-position"
+                type="text"
+                placeholder="Ex: 1"
+                aria-label="Position"
+              />
+              <input
+                v-model="track.title"
+                class="tracklist-input tracklist-input-title"
+                type="text"
+                placeholder="Titre de la piste"
+                aria-label="Titre"
+              />
+              <input
+                v-model="track.duration"
+                class="tracklist-input tracklist-input-duration"
+                type="text"
+                placeholder="--:--"
+                aria-label="Durée"
+              />
+              <button
+                type="button"
+                class="tracklist-remove-btn"
+                :aria-label="`Supprimer la piste ${index + 1}`"
+                @click="removeOtherTrack(index)"
+              >
+                🗑️
+              </button>
+            </li>
+          </ol>
+        </template>
       </template>
 
-      <ol v-else-if="tracks.length" class="tracklist-list">
-        <li v-for="(track, index) in tracks" :key="index" class="tracklist-item">
-          <span class="tracklist-position">{{ track.position || index + 1 }}</span>
-          <span class="tracklist-title">{{ track.title }}</span>
-          <span v-if="track.duration" class="tracklist-duration">{{ track.duration }}</span>
-        </li>
-      </ol>
+      <template v-else-if="tracks.length">
+        <div v-if="groupedTracks.discs.length > 1" class="disc-groups">
+          <div v-for="d in groupedTracks.discs" :key="d.disc" class="disc-group">
+            <h3>Disque {{ d.disc }}</h3>
+            <div class="side-columns">
+              <div v-for="s in d.sides" :key="s.letter" class="side-column">
+                <h4 v-if="s.tracks.length">Face {{ s.letter }}</h4>
+                <ol v-if="s.tracks.length" class="tracklist-list">
+                  <li v-for="(track, index) in s.tracks" :key="index" class="tracklist-item">
+                    <span class="tracklist-position">{{ track.position || index + 1 }}</span>
+                    <span class="tracklist-title">{{ track.title }}</span>
+                    <span v-if="track.duration" class="tracklist-duration">{{ track.duration }}</span>
+                  </li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
+        <ol v-else class="tracklist-list">
+          <li v-for="(track, index) in tracks" :key="index" class="tracklist-item">
+            <span class="tracklist-position">{{ track.position || index + 1 }}</span>
+            <span class="tracklist-title">{{ track.title }}</span>
+            <span v-if="track.duration" class="tracklist-duration">{{ track.duration }}</span>
+          </li>
+        </ol>
+      </template>
 
       <div v-else-if="hasLoaded" class="tracklist-state tracklist-empty">
         <p>Aucune piste enregistrée pour ce disque.</p>
@@ -346,12 +484,16 @@ function getImageUrl(path, cacheBuster = null) {
 
 .tracklist-edit-item {
   display: grid;
-  grid-template-columns: 3.5rem 1fr 4.5rem auto;
+  grid-template-columns: 1fr 4.5rem auto;
   align-items: center;
   gap: 0.5rem;
   padding: 0.4rem;
   border-radius: 10px;
   background: rgba(var(--tint-rgb), 0.03);
+}
+
+.tracklist-edit-item-other {
+  grid-template-columns: 3.5rem 1fr 4.5rem auto;
 }
 
 .tracklist-input {
@@ -392,6 +534,68 @@ function getImageUrl(path, cacheBuster = null) {
 .tracklist-add-btn {
   margin-top: 0.75rem;
   width: 100%;
+}
+
+.tracklist-add-btn.small {
+  margin-top: 0.4rem;
+  padding: 0.35rem;
+  font-size: 0.82rem;
+}
+
+.disc-groups {
+  display: grid;
+  gap: 0.9rem;
+  margin: 1rem 0;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.disc-group {
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: rgba(var(--tint-rgb), 0.02);
+}
+
+.disc-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.disc-group h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.disc-group-header h3 {
+  margin: 0;
+}
+
+.side-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.side-column h4 {
+  margin: 0 0 0.4rem 0;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.other-tracks-title {
+  margin: 1rem 0 0.4rem 0;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+@media (max-width: 640px) {
+  .side-columns {
+    grid-template-columns: 1fr;
+  }
 }
 
 @keyframes modal-pop-in {
