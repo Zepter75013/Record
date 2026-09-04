@@ -1,7 +1,7 @@
 <!-- VinylsByArtist.vue -->
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useApi } from '@/composables/useApi'
 import StreamingButtons from '@/components/StreamingButtons.vue'
 import TracklistModal from '@/components/TracklistModal.vue'
@@ -10,6 +10,7 @@ import { formatCurrency } from '@/utils/format'
 import { groupTracksByDiscSide } from '@/utils/discSides'
 
 const router = useRouter()
+const route = useRoute()
 const { apiFetch } = useApi()
 
 // États
@@ -243,6 +244,25 @@ const fetchArtists = async () => {
   }
 }
 
+// Restaure l'artiste/album sélectionnés au retour de la modale d'édition
+// (voir ?artist=&disc= poussés par DiscsView.vue à la fermeture) — sans ça
+// "Annuler"/"Enregistrer" renvoie sur la liste des artistes au lieu de
+// l'écran précis quitté en cliquant "Modifier".
+const restoreSelectionFromQuery = () => {
+  const artistId = route.query.artist
+  const discId = route.query.disc
+  if (!artistId) return
+
+  const artist = artists.value.find((a) => String(a.id) === String(artistId))
+  if (artist) {
+    selectedArtist.value = artist
+    const vinyl = discId ? vinyls.value.find((v) => String(v.id) === String(discId)) : null
+    selectVinyl(vinyl || sortedArtistVinyls.value[0] || null)
+  }
+
+  router.replace({ query: { ...route.query, artist: undefined, disc: undefined } })
+}
+
 // Sélectionner un artiste
 const selectArtist = (artist) => {
   selectedArtist.value = artist
@@ -404,7 +424,7 @@ const startResize = (e) => {
 }
 
 onMounted(() => {
-  fetchArtists()
+  fetchArtists().then(() => restoreSelectionFromQuery())
 })
 </script>
 

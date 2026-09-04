@@ -930,7 +930,10 @@ if (!editId) return;
 const disc = discs.value.find((d) => String(d.id) === String(editId));
 if (disc) {
 openModal(disc);
-returnPathAfterModal.value = '/dashboard/vinyls/by-artist';
+returnPathAfterModal.value = {
+path: '/dashboard/vinyls/by-artist',
+query: { artist: disc.artist_id, disc: disc.id }
+};
 } else {
 logger.error('Disque non trouvé pour édition via URL (ID:', editId, ')');
 apiError.value = `Disque non trouvé (ID: ${editId})`;
