@@ -4,12 +4,14 @@
 // Importe le composant clé de Vue Router
 import { RouterView } from 'vue-router'
 import { useThemeStore } from './stores/theme'
+import UpdateBanner from './components/UpdateBanner.vue'
 
 // Instancie le store une fois au montage pour appliquer data-theme sur <html>
 useThemeStore()
 </script>
 
 <template>
+  <UpdateBanner />
   <RouterView />
 </template>
 
