@@ -628,6 +628,7 @@ onMounted(() => {
               :key="vinyl.id"
               class="album-list-item"
               :class="{ active: selectedVinyl?.id === vinyl.id }"
+              :title="vinyl.title"
               @click="selectVinyl(vinyl)"
             >
               <span class="album-year">{{ vinyl.release_year || '—' }}</span>
