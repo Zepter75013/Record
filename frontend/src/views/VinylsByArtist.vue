@@ -149,17 +149,31 @@ const selectVinyl = (vinyl) => {
 
 // Recherche une nouvelle tracklist sur Discogs et remplace l'existante —
 // utile quand les pistes chargées automatiquement sont incomplètes ou
-// erronées (mauvais pressage). Écrase tout, donc confirmation si des
-// pistes sont déjà là.
+// erronées (mauvais pressage). Écrase tout, donc confirmation (modale
+// maison, pas window.confirm) si des pistes sont déjà là.
 const isRefetchingTracks = ref(false)
-const refetchTracksFromInternet = async (vinyl) => {
+const isRefetchConfirmOpen = ref(false)
+
+const refetchTracksFromInternet = (vinyl) => {
   if (!vinyl?.id) return
   if (vinylTracks.value.length > 0) {
-    const confirmed = window.confirm(
-      'Remplacer la tracklist actuelle par une nouvelle recherche sur Discogs ? Les pistes actuelles seront perdues.'
-    )
-    if (!confirmed) return
+    isRefetchConfirmOpen.value = true
+    return
   }
+  performTracksRefetch(vinyl)
+}
+
+const confirmRefetchTracks = () => {
+  isRefetchConfirmOpen.value = false
+  performTracksRefetch(selectedVinyl.value)
+}
+
+const cancelRefetchTracks = () => {
+  isRefetchConfirmOpen.value = false
+}
+
+const performTracksRefetch = async (vinyl) => {
+  if (!vinyl?.id) return
   isRefetchingTracks.value = true
   try {
     const result = await fetchTracklistOnDemand(vinyl.id, true)
@@ -860,6 +874,24 @@ onMounted(() => {
       @close="closeEditModal"
       @save="saveEditedDisc"
     />
+
+    <Teleport to="body">
+      <div v-if="isRefetchConfirmOpen" class="modal-overlay" @click.self="cancelRefetchTracks">
+        <div class="modal-card refetch-confirm-card">
+          <div class="modal-header">
+            <h2>🔄 Remplacer la tracklist ?</h2>
+          </div>
+          <p>
+            Une nouvelle recherche sur Discogs va remplacer la tracklist actuelle de
+            « {{ selectedVinyl?.title }} ». Les pistes actuelles seront perdues.
+          </p>
+          <div class="modal-actions">
+            <button type="button" class="ghost-btn" @click="cancelRefetchTracks">Annuler</button>
+            <button type="button" class="danger-btn" @click="confirmRefetchTracks">Remplacer</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -868,6 +900,16 @@ onMounted(() => {
   min-height: 100vh;
   background: transparent;
   padding: 20px;
+}
+
+.refetch-confirm-card {
+  max-width: 460px;
+}
+
+.refetch-confirm-card p {
+  margin: 0;
+  color: var(--text-soft);
+  line-height: 1.5;
 }
 
 /* ============================================
