@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -117,7 +119,9 @@ type musicBrainzArtistSearchResponse struct {
 // champ pays structuré pour les artistes) et renvoie le code pays ISO du
 // meilleur résultat ainsi que son nom lisible (anglais).
 func searchMusicBrainzCountry(artistName string) (code string, name string, err error) {
-	client := &http.Client{Timeout: 10 * time.Second}
+	// MusicBrainz répond parfois lentement (service public gratuit, pas de
+	// SLA) — 10s s'est révélé trop court en usage réel, d'où 20s ici.
+	client := &http.Client{Timeout: 20 * time.Second}
 	query := url.QueryEscape(fmt.Sprintf(`artist:"%s"`, artistName))
 	req, err := http.NewRequest("GET", "https://musicbrainz.org/ws/2/artist/?query="+query+"&fmt=json&limit=1", nil)
 	if err != nil {
@@ -128,7 +132,11 @@ func searchMusicBrainzCountry(artistName string) (code string, name string, err 
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", "", err
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			return "", "", fmt.Errorf("MusicBrainz a mis trop de temps à répondre, réessayez")
+		}
+		return "", "", fmt.Errorf("impossible de joindre MusicBrainz : %w", err)
 	}
 	defer resp.Body.Close()
 
