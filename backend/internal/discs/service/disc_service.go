@@ -412,9 +412,13 @@ func (s *DiscService) UpdateTracksForDisc(ctx context.Context, discID int, items
 	return s.trackRepo.FindByVinylID(ctx, discID)
 }
 
-// searchDiscogsTracklist recherche la tracklist d'un disque sur Discogs à
-// partir de son titre/artiste (pas de discogs_release_id connu, donc même
-// risque de mauvais pressage que la recherche de pochette existante).
+// searchDiscogsTracklist recherche la tracklist d'un disque sur Discogs.
+// Utilise le discogs_release_id du disque quand il est connu (pressage
+// exact, déjà identifié lors de l'ajout par code-barres) — sinon re-recherche
+// par titre/artiste, avec un vrai risque de mauvais pressage : deux
+// éditions différentes d'un même titre (single vs remix, réédition…) ont
+// souvent le même titre/artiste mais des tracklists différentes, et une
+// recherche texte ne peut pas les distinguer.
 // Lecture seule — n'écrit rien en base, laisse l'appelant décider.
 func (s *DiscService) searchDiscogsTracklist(ctx context.Context, discID int) ([]tracks.Track, error) {
 	disc, err := s.repo.FindByID(ctx, discID)
@@ -425,9 +429,14 @@ func (s *DiscService) searchDiscogsTracklist(ctx context.Context, discID int) ([
 		return nil, fmt.Errorf("disque introuvable")
 	}
 
-	releaseID, err := s.findReleaseIDByTitleArtist(disc.Title, disc.ArtistName)
-	if err != nil {
-		return nil, err
+	var releaseID int64
+	if disc.DiscogsReleaseID != nil && *disc.DiscogsReleaseID > 0 {
+		releaseID = *disc.DiscogsReleaseID
+	} else {
+		releaseID, err = s.findReleaseIDByTitleArtist(disc.Title, disc.ArtistName)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	preview, err := s.getDiscogsReleaseDetails(releaseID)

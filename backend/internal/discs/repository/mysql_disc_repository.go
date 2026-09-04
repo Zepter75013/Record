@@ -197,6 +197,7 @@ func (r *MySQLDiscRepository) FindByID(ctx context.Context, id int) (*discs.Disc
 			v.deezer_url,
 			v.youtube_url,
 			v.isrc,
+			v.discogs_release_id,
 			EXISTS(SELECT 1 FROM records_tracks t WHERE t.vinyl_id = v.id) as has_tracks,
 			v.created_at,
 			v.updated_at
@@ -236,6 +237,7 @@ func (r *MySQLDiscRepository) FindByID(ctx context.Context, id int) (*discs.Disc
 		&d.DeezerURL,
 		&d.YoutubeURL,
 		&d.ISRC,
+		&d.DiscogsReleaseID,
 		&d.HasTracks,
 		&d.CreatedAt,
 		&d.UpdatedAt,
