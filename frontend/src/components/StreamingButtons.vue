@@ -7,6 +7,17 @@ const props = defineProps({
   disc: {
     type: Object,
     required: true
+  },
+  // Piste précise à écouter au lieu de l'album entier — objet { title }.
+  track: {
+    type: Object,
+    default: null
+  },
+  // Bouton compact en ligne (tracklist) au lieu du gros bouton flottant
+  // centré sur une pochette.
+  inline: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -60,10 +71,14 @@ const PLATFORMS = {
 
 const platform = computed(() => PLATFORMS[streamingPrefs.preferredPlatform] || null)
 
-// Toujours dérivé du disque (artiste + titre) — plus de lien stocké en base à maintenir.
+// Nom affiché dans l'info-bulle : la piste si on écoute une piste précise,
+// sinon l'album entier.
+const label = computed(() => props.track?.title || props.disc.title)
+
+// Toujours dérivé du disque/piste (artiste + titre) — pas de lien stocké en base à maintenir.
 const query = computed(() => {
-  if (!props.disc.artist_name || !props.disc.title) return null
-  return encodeURIComponent(`${props.disc.artist_name} ${props.disc.title}`)
+  if (!props.disc.artist_name || !label.value) return null
+  return encodeURIComponent(`${props.disc.artist_name} ${label.value}`)
 })
 
 const searchUrl = computed(() => {
@@ -72,7 +87,9 @@ const searchUrl = computed(() => {
 })
 
 async function openStreaming() {
-  if (!platform.value.resolve) {
+  // La résolution automatique (widget Deezer, lien Apple Music exact) ne
+  // vise que l'album — pour une piste précise on reste sur la recherche.
+  if (props.track || !platform.value.resolve) {
     window.open(searchUrl.value, '_blank')
     return
   }
@@ -99,10 +116,10 @@ async function openStreaming() {
     v-if="platform && query"
     @click.stop="openStreaming"
     class="cover-play-btn"
-    :class="platform.class"
+    :class="[platform.class, { inline }]"
     :disabled="isResolving"
-    :title="`Écouter sur ${platform.label}`"
-    :aria-label="`Écouter sur ${platform.label}`"
+    :title="`Écouter « ${label} » sur ${platform.label}`"
+    :aria-label="`Écouter « ${label} » sur ${platform.label}`"
   >
     <span class="play-glyph">{{ isResolving ? '⏳' : '▶' }}</span>
   </button>
@@ -135,7 +152,7 @@ async function openStreaming() {
 
 /* Écrans avec un vrai survol (desktop) : bouton centré, révélé au survol de la carte */
 @media (hover: hover) {
-  .cover-play-btn {
+  .cover-play-btn:not(.inline) {
     inset: 0;
     margin: auto;
     width: 56px;
@@ -144,18 +161,18 @@ async function openStreaming() {
     opacity: 0;
   }
 
-  .vinyl-card:hover .cover-play-btn {
+  .vinyl-card:hover .cover-play-btn:not(.inline) {
     opacity: 1;
   }
 
-  .cover-play-btn:hover {
+  .cover-play-btn:not(.inline):hover {
     transform: scale(1.1);
   }
 }
 
 /* Tactile (mobile/tablette, pas de survol) : toujours visible, discret, coin bas-droit */
 @media (hover: none) {
-  .cover-play-btn {
+  .cover-play-btn:not(.inline) {
     bottom: 8px;
     right: 8px;
     width: 38px;
@@ -163,6 +180,26 @@ async function openStreaming() {
     font-size: 1.1em;
     opacity: 1;
   }
+}
+
+/* Bouton compact en ligne (tracklist) : plus de positionnement flottant. */
+.cover-play-btn.inline {
+  position: static;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  font-size: 0.65em;
+  opacity: 0.85;
+  box-shadow: none;
+}
+
+.cover-play-btn.inline:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.cover-play-btn.inline .play-glyph {
+  margin-left: 1px;
 }
 
 /* Couleurs de marque par plateforme */

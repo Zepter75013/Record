@@ -713,6 +713,7 @@ onMounted(() => {
                       <span class="track-pos">{{ t.position || i + 1 }}</span>
                       <span class="track-title">{{ t.title }}</span>
                       <span class="track-duration" v-if="t.duration">{{ t.duration }}</span>
+                      <StreamingButtons :disc="selectedVinyl" :track="t" inline />
                     </li>
                   </ol>
                   <p v-else class="tracklist-empty">Aucune piste</p>
@@ -728,6 +729,7 @@ onMounted(() => {
                       <span class="track-pos">{{ t.position || i + 1 }}</span>
                       <span class="track-title">{{ t.title }}</span>
                       <span class="track-duration" v-if="t.duration">{{ t.duration }}</span>
+                      <StreamingButtons :disc="selectedVinyl" :track="t" inline />
                     </li>
                   </ol>
                   <p v-else class="tracklist-empty">Aucune piste</p>
@@ -749,6 +751,7 @@ onMounted(() => {
                           <span class="track-pos">{{ t.position || i + 1 }}</span>
                           <span class="track-title">{{ t.title }}</span>
                           <span class="track-duration" v-if="t.duration">{{ t.duration }}</span>
+                          <StreamingButtons :disc="selectedVinyl" :track="t" inline />
                         </li>
                       </ol>
                       <p v-else class="tracklist-empty">Aucune piste</p>

@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { fetchTracks, fetchTracklistOnDemand, updateTracks } from '../services/tracks'
 import { groupTracksByDiscSide, discSideToLetter } from '../utils/discSides'
+import StreamingButtons from './StreamingButtons.vue'
 
 const props = defineProps({
   modelValue: {
@@ -312,6 +313,7 @@ function getImageUrl(path, cacheBuster = null) {
                     <span class="tracklist-position">{{ track.position || index + 1 }}</span>
                     <span class="tracklist-title">{{ track.title }}</span>
                     <span v-if="track.duration" class="tracklist-duration">{{ track.duration }}</span>
+                    <StreamingButtons :disc="disc" :track="track" inline />
                   </li>
                 </ol>
               </div>
@@ -323,6 +325,7 @@ function getImageUrl(path, cacheBuster = null) {
             <span class="tracklist-position">{{ track.position || index + 1 }}</span>
             <span class="tracklist-title">{{ track.title }}</span>
             <span v-if="track.duration" class="tracklist-duration">{{ track.duration }}</span>
+            <StreamingButtons :disc="disc" :track="track" inline />
           </li>
         </ol>
       </template>
@@ -443,7 +446,7 @@ function getImageUrl(path, cacheBuster = null) {
 
 .tracklist-item {
   display: grid;
-  grid-template-columns: 2.5rem 1fr auto;
+  grid-template-columns: 2.5rem 1fr auto auto;
   align-items: center;
   gap: 0.75rem;
   padding: 0.55rem 0.7rem;
