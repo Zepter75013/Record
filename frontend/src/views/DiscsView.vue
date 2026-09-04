@@ -904,6 +904,11 @@ apiError.value = null;
 currentDisc.value = disc ? { ...disc } : null;
 isModalOpen.value = true;
 };
+// Si la modale a été ouverte via ?edit=<id> (deep-link depuis Disques par
+// Artistes), on garde le chemin d'où l'on vient pour y revenir à la
+// fermeture — sinon Annuler/Enregistrer laisse l'utilisateur sur la liste
+// brute des disques, ce qui n'a rien à voir avec l'écran qu'il a quitté.
+const returnPathAfterModal = ref(null);
 // ✅ FONCTION: Fermer modale
 const closeModal = () => {
 logger.debug('Fermeture de la modale');
@@ -911,6 +916,11 @@ apiError.value = null;
 isModalOpen.value = false;
 currentDisc.value = null;
 isSaving.value = false; // Réinitialiser l'état de sauvegarde
+if (returnPathAfterModal.value) {
+const target = returnPathAfterModal.value;
+returnPathAfterModal.value = null;
+router.push(target);
+}
 };
 // ✅ FONCTION: Ouvrir directement la modale d'édition via ?edit=<id> dans l'URL
 // (utilisé par le bouton "Modifier" de la fiche album dans Disques par Artistes)
@@ -920,6 +930,7 @@ if (!editId) return;
 const disc = discs.value.find((d) => String(d.id) === String(editId));
 if (disc) {
 openModal(disc);
+returnPathAfterModal.value = '/dashboard/vinyls/by-artist';
 } else {
 logger.error('Disque non trouvé pour édition via URL (ID:', editId, ')');
 apiError.value = `Disque non trouvé (ID: ${editId})`;
