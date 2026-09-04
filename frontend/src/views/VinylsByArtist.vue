@@ -5,6 +5,8 @@ import { useRouter } from 'vue-router'
 import { useApi } from '@/composables/useApi'
 import StreamingButtons from '@/components/StreamingButtons.vue'
 import TracklistModal from '@/components/TracklistModal.vue'
+import { fetchTracks } from '@/services/tracks'
+import { formatCurrency } from '@/utils/format'
 
 const router = useRouter()
 const { apiFetch } = useApi()
@@ -91,6 +93,62 @@ const artistVinyls = computed(() => {
   if (!selectedArtist.value) return []
   return vinyls.value.filter(vinyl => vinyl.artist_id === selectedArtist.value.id)
 })
+const sortedArtistVinyls = computed(() => {
+  return [...artistVinyls.value].sort((a, b) => {
+    const ay = a.release_year || 0
+    const by = b.release_year || 0
+    if (ay !== by) return ay - by
+    return (a.title || '').localeCompare(b.title || '')
+  })
+})
+
+// Album sélectionné dans la fiche détaillée + ses pistes
+const selectedVinyl = ref(null)
+const vinylTracks = ref([])
+const tracksLoading = ref(false)
+
+const loadVinylTracks = async (vinyl) => {
+  if (!vinyl?.id) {
+    vinylTracks.value = []
+    return
+  }
+  tracksLoading.value = true
+  try {
+    vinylTracks.value = await fetchTracks(vinyl.id)
+  } catch (err) {
+    console.error('❌ Erreur chargement pistes:', err)
+    vinylTracks.value = []
+  } finally {
+    tracksLoading.value = false
+  }
+}
+
+const selectVinyl = (vinyl) => {
+  selectedVinyl.value = vinyl
+  loadVinylTracks(vinyl)
+}
+
+// Répartit les pistes par face à partir du préfixe de position (A1, B2…) ;
+// si aucune position n'est renseignée, on coupe simplement la liste en deux.
+const tracksByFace = computed(() => {
+  const tracks = vinylTracks.value
+  const hasPositions = tracks.some(t => /^[AB]/i.test(t.position || ''))
+  if (hasPositions) {
+    return {
+      A: tracks.filter(t => /^A/i.test(t.position || '')),
+      B: tracks.filter(t => /^B/i.test(t.position || ''))
+    }
+  }
+  const mid = Math.ceil(tracks.length / 2)
+  return { A: tracks.slice(0, mid), B: tracks.slice(mid) }
+})
+const faceATracks = computed(() => tracksByFace.value.A)
+const faceBTracks = computed(() => tracksByFace.value.B)
+
+const formatPrice = (value) => {
+  if (value === null || value === undefined || value === '') return '—'
+  return formatCurrency(value)
+}
 
 // Charger les artistes
 const fetchArtists = async () => {
@@ -124,12 +182,15 @@ const fetchArtists = async () => {
 // Sélectionner un artiste
 const selectArtist = (artist) => {
   selectedArtist.value = artist
+  selectVinyl(sortedArtistVinyls.value[0] || null)
   console.log('🎤 Artiste sélectionné:', artist.name, '(', artist.vinyl_count, 'disques )')
 }
 
 // Retour à la liste
 const backToList = () => {
   selectedArtist.value = null
+  selectedVinyl.value = null
+  vinylTracks.value = []
 }
 
 // Voir les détails d'un disque
@@ -404,50 +465,151 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Vue détails artiste avec ses disques -->
+    <!-- Vue détails artiste : liste des albums + fiche détaillée -->
     <div v-else class="artist-detail-view">
-      <div class="vinyls-grid" v-if="artistVinyls.length > 0">
-        <div
-          v-for="vinyl in artistVinyls"
-          :key="vinyl.id"
-          @click="viewVinylDetails(vinyl)"
-          class="vinyl-card"
-        >
-          <div class="vinyl-cover">
-            <img
-              v-if="vinyl.cover_url"
-              :src="normalizeCoverUrl(vinyl.cover_url)"
-              :alt="vinyl.title"
-              @error="handleImageError"
-              class="cover-image"
-            />
-            <div class="cover-fallback">
-              <span class="fallback-icon">💿</span>
-            </div>
-            <div class="vinyl-overlay"></div>
-            <StreamingButtons :disc="vinyl" />
+      <div class="detail-layout">
+        <!-- Liste des albums de l'artiste -->
+        <aside class="albums-sidebar">
+          <div class="albums-sidebar-header">
+            <span>Albums</span>
+            <span class="albums-count">{{ sortedArtistVinyls.length }}</span>
           </div>
-          <div class="vinyl-info">
-            <h3 class="vinyl-title">{{ vinyl.title }}</h3>
-            <p class="vinyl-year" v-if="vinyl.release_year">{{ vinyl.release_year }}</p>
+          <div class="albums-list">
             <button
-              type="button"
-              class="tracklist-link"
-              :class="{ 'has-tracks': vinyl.has_tracks }"
-              @click.stop="openTracklistModal(vinyl)"
+              v-for="vinyl in sortedArtistVinyls"
+              :key="vinyl.id"
+              class="album-list-item"
+              :class="{ active: selectedVinyl?.id === vinyl.id }"
+              @click="selectVinyl(vinyl)"
             >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
-                <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-              </svg>
-              Pistes
+              <span class="album-year">{{ vinyl.release_year || '—' }}</span>
+              <span class="album-title">{{ vinyl.title }}</span>
             </button>
+            <div v-if="!sortedArtistVinyls.length" class="empty-state small">
+              <span class="empty-icon">💿</span>
+              <p>Aucun disque pour cet artiste</p>
+            </div>
           </div>
-        </div>
-      </div>
+        </aside>
 
-      <div v-else class="empty-state">
-        <span class="empty-icon">💿</span>
-        <p>Aucun disque pour cet artiste</p>
+        <!-- Fiche détaillée de l'album sélectionné -->
+        <section class="vinyl-detail-panel" v-if="selectedVinyl">
+          <div class="detail-content">
+            <div class="detail-fields">
+              <div class="field-row">
+                <div class="field">
+                  <label>Artiste</label>
+                  <div class="field-value">{{ selectedArtist.name }}</div>
+                </div>
+                <div class="field">
+                  <label>Titre</label>
+                  <div class="field-value">{{ selectedVinyl.title }}</div>
+                </div>
+              </div>
+              <div class="field-row">
+                <div class="field">
+                  <label>Genre</label>
+                  <div class="field-value">{{ selectedVinyl.genre_name || '—' }}</div>
+                </div>
+                <div class="field">
+                  <label>Format</label>
+                  <div class="field-value">{{ selectedVinyl.format_name || '—' }}</div>
+                </div>
+              </div>
+              <div class="field-row">
+                <div class="field">
+                  <label>Éditeur</label>
+                  <div class="field-value">{{ selectedVinyl.label_name || '—' }}</div>
+                </div>
+                <div class="field">
+                  <label>Pays</label>
+                  <div class="field-value">{{ selectedVinyl.country_name || '—' }}</div>
+                </div>
+              </div>
+              <div class="field-row">
+                <div class="field">
+                  <label>Année</label>
+                  <div class="field-value">{{ selectedVinyl.release_year || '—' }}</div>
+                </div>
+                <div class="field">
+                  <label>Code-barres</label>
+                  <div class="field-value">{{ selectedVinyl.barcode || '—' }}</div>
+                </div>
+              </div>
+              <div class="field-row">
+                <div class="field">
+                  <label>Prix</label>
+                  <div class="field-value">{{ formatPrice(selectedVinyl.price) }}</div>
+                </div>
+                <div class="field">
+                  <label>Quantité</label>
+                  <div class="field-value">{{ selectedVinyl.quantity || 1 }}</div>
+                </div>
+              </div>
+              <div class="field-row single">
+                <div class="field full">
+                  <label>Commentaires</label>
+                  <div class="field-value textarea">{{ selectedVinyl.notes || '—' }}</div>
+                </div>
+              </div>
+
+              <div class="tracklist-columns">
+                <div class="tracklist-face">
+                  <h4>Face A</h4>
+                  <p v-if="tracksLoading" class="tracklist-loading">Chargement…</p>
+                  <ol v-else-if="faceATracks.length">
+                    <li v-for="(t, i) in faceATracks" :key="t.id ?? i">
+                      <span class="track-pos">{{ t.position || i + 1 }}</span>
+                      <span class="track-title">{{ t.title }}</span>
+                      <span class="track-duration" v-if="t.duration">{{ t.duration }}</span>
+                    </li>
+                  </ol>
+                  <p v-else class="tracklist-empty">Aucune piste</p>
+                </div>
+                <div class="tracklist-face">
+                  <h4>Face B</h4>
+                  <p v-if="tracksLoading" class="tracklist-loading">Chargement…</p>
+                  <ol v-else-if="faceBTracks.length">
+                    <li v-for="(t, i) in faceBTracks" :key="t.id ?? i">
+                      <span class="track-pos">{{ t.position || i + 1 }}</span>
+                      <span class="track-title">{{ t.title }}</span>
+                      <span class="track-duration" v-if="t.duration">{{ t.duration }}</span>
+                    </li>
+                  </ol>
+                  <p v-else class="tracklist-empty">Aucune piste</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="detail-side">
+              <div class="detail-cover">
+                <img
+                  v-if="selectedVinyl.cover_url"
+                  :src="normalizeCoverUrl(selectedVinyl.cover_url)"
+                  :alt="selectedVinyl.title"
+                  @error="handleImageError"
+                />
+                <div class="cover-fallback" :style="{ display: selectedVinyl.cover_url ? 'none' : 'flex' }">
+                  <span class="fallback-icon">💿</span>
+                </div>
+              </div>
+              <StreamingButtons :disc="selectedVinyl" />
+              <div class="detail-actions">
+                <button type="button" class="detail-action-btn" @click="openTracklistModal(selectedVinyl)">
+                  🎵 Gérer les pistes
+                </button>
+                <button type="button" class="detail-action-btn primary" @click="viewVinylDetails(selectedVinyl)">
+                  ✏️ Modifier
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div v-else class="empty-state">
+          <span class="empty-icon">💿</span>
+          <p>Sélectionnez un album</p>
+        </div>
       </div>
     </div>
 
@@ -867,44 +1029,219 @@ onMounted(() => {
 }
 
 /* ============================================
-   VINYLS GRID (ARTIST DETAIL)
+   ARTIST DETAIL — FICHE MAÎTRE/DÉTAIL
    ============================================ */
 .artist-detail-view {
   margin-top: 20px;
 }
 
-.vinyls-grid {
+.detail-layout {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: 260px 1fr;
   gap: 20px;
+  align-items: start;
 }
 
-.vinyl-card {
+.albums-sidebar {
   background: var(--panel-bg);
   backdrop-filter: blur(10px);
   border: 1px solid var(--line-soft);
   border-radius: 12px;
   padding: 12px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.albums-sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  font-size: 0.8em;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.albums-count {
+  background: rgba(var(--tint-rgb), 0.12);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.9em;
+}
+
+.album-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 10px;
+  background: rgba(var(--tint-rgb), 0.04);
+  border: none;
+  border-radius: 8px;
+  color: var(--text);
   cursor: pointer;
-  transition: all 0.3s;
-  position: relative;
+  margin-bottom: 4px;
+  transition: all 0.2s;
 }
 
-.vinyl-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.15);
+.album-list-item:hover {
+  background: rgba(var(--tint-rgb), 0.08);
 }
 
-.vinyl-cover {
+.album-list-item.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-blue));
+  color: white;
+}
+
+.album-year {
+  font-size: 0.85em;
+  color: var(--text-dim);
+  min-width: 36px;
+}
+
+.album-list-item.active .album-year {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.album-title {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vinyl-detail-panel {
+  background: var(--panel-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.detail-content {
+  display: grid;
+  grid-template-columns: 1fr 220px;
+  gap: 24px;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.field-row.single {
+  grid-template-columns: 1fr;
+}
+
+.field label {
+  display: block;
+  font-size: 0.75em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.field-value {
+  background: rgba(var(--tint-rgb), 0.05);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 0.95em;
+  min-height: 20px;
+}
+
+.field-value.textarea {
+  min-height: 48px;
+  white-space: pre-wrap;
+}
+
+.tracklist-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.tracklist-face h4 {
+  margin: 0 0 8px 0;
+  color: var(--text);
+  font-size: 0.95em;
+}
+
+.tracklist-face ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: rgba(var(--tint-rgb), 0.04);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.tracklist-face li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 0.88em;
+}
+
+.tracklist-face li:last-child {
+  border-bottom: none;
+}
+
+.track-pos {
+  color: var(--text-dim);
+  min-width: 24px;
+  font-weight: 600;
+}
+
+.track-title {
+  flex: 1;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-duration {
+  color: var(--text-dim);
+  font-size: 0.9em;
+}
+
+.tracklist-empty,
+.tracklist-loading {
+  color: var(--text-dim);
+  font-size: 0.85em;
+  padding: 10px 0;
+  margin: 0;
+}
+
+.detail-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detail-cover {
   position: relative;
   width: 100%;
   aspect-ratio: 1;
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
   background: rgba(var(--tint-rgb), 0.06);
 }
 
-.cover-image {
+.detail-cover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -919,61 +1256,40 @@ onMounted(() => {
   background: linear-gradient(135deg, var(--accent), var(--accent-blue));
 }
 
-.vinyl-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+.detail-actions {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.3s;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.vinyl-card:hover .vinyl-overlay {
-  opacity: 1;
-}
-
-.vinyl-info {
-  margin-top: 12px;
-}
-
-.vinyl-title {
+.detail-action-btn {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(var(--tint-rgb), 0.05);
   color: var(--text);
-  font-size: 1em;
-  margin: 0 0 4px 0;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.vinyl-year {
-  color: var(--text-dim);
-  font-size: 0.9em;
-  margin: 0;
-}
-
-.tracklist-link {
-  margin-top: 6px;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--text-dim);
-  font-size: 0.85em;
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.tracklist-link.has-tracks {
-  color: var(--accent-sand);
   font-weight: 600;
+  transition: all 0.2s;
 }
 
-.tracklist-link:hover {
-  color: var(--accent);
+.detail-action-btn:hover {
+  background: rgba(var(--tint-rgb), 0.1);
+}
+
+.detail-action-btn.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-blue));
+  border: none;
+  color: white;
+}
+
+.detail-action-btn.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+.empty-state.small {
+  padding: 30px 10px;
 }
 
 /* ============================================
@@ -1061,11 +1377,15 @@ onMounted(() => {
   .content-layout {
     grid-template-columns: 300px 1fr;
   }
-  
-  .vinyls-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+
+  .detail-layout {
+    grid-template-columns: 220px 1fr;
   }
-  
+
+  .detail-content {
+    grid-template-columns: 1fr 180px;
+  }
+
   .polaroid-card {
     width: 100px;
   }
@@ -1110,9 +1430,20 @@ onMounted(() => {
     display: none !important;
   }
 
-  .vinyls-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 12px;
+  .detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-content {
+    grid-template-columns: 1fr;
+  }
+
+  .field-row {
+    grid-template-columns: 1fr;
+  }
+
+  .tracklist-columns {
+    grid-template-columns: 1fr;
   }
 
   .polaroid-card {
