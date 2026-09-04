@@ -6,7 +6,7 @@ import { useApi } from '@/composables/useApi'
 import StreamingButtons from '@/components/StreamingButtons.vue'
 import TracklistModal from '@/components/TracklistModal.vue'
 import DiscsModal from '@/components/DiscsModal/DiscsModal.vue'
-import { fetchTracks } from '@/services/tracks'
+import { fetchTracks, fetchTracklistOnDemand } from '@/services/tracks'
 import { formatCurrency } from '@/utils/format'
 import { groupTracksByDiscSide } from '@/utils/discSides'
 
@@ -145,6 +145,34 @@ const loadVinylTracks = async (vinyl) => {
 const selectVinyl = (vinyl) => {
   selectedVinyl.value = vinyl
   loadVinylTracks(vinyl)
+}
+
+// Recherche une nouvelle tracklist sur Discogs et remplace l'existante —
+// utile quand les pistes chargées automatiquement sont incomplètes ou
+// erronées (mauvais pressage). Écrase tout, donc confirmation si des
+// pistes sont déjà là.
+const isRefetchingTracks = ref(false)
+const refetchTracksFromInternet = async (vinyl) => {
+  if (!vinyl?.id) return
+  if (vinylTracks.value.length > 0) {
+    const confirmed = window.confirm(
+      'Remplacer la tracklist actuelle par une nouvelle recherche sur Discogs ? Les pistes actuelles seront perdues.'
+    )
+    if (!confirmed) return
+  }
+  isRefetchingTracks.value = true
+  try {
+    const result = await fetchTracklistOnDemand(vinyl.id, true)
+    vinylTracks.value = result || []
+    const found = vinylTracks.value.length > 0
+    const localVinyl = vinyls.value.find((v) => v.id === vinyl.id)
+    if (localVinyl) localVinyl.has_tracks = found
+    if (!found) alert('Aucune piste trouvée sur Discogs pour ce disque.')
+  } catch (err) {
+    alert(`Échec de la mise à jour des pistes : ${err.message}`)
+  } finally {
+    isRefetchingTracks.value = false
+  }
 }
 
 // Regroupe les pistes par disque puis par face (A/B) selon la lettre de
@@ -782,6 +810,14 @@ onMounted(() => {
               <div class="detail-actions">
                 <button type="button" class="detail-action-btn" @click="openTracklistModal(selectedVinyl)">
                   🎵 Gérer les pistes
+                </button>
+                <button
+                  type="button"
+                  class="detail-action-btn"
+                  :disabled="isRefetchingTracks"
+                  @click="refetchTracksFromInternet(selectedVinyl)"
+                >
+                  {{ isRefetchingTracks ? '⏳ Récupération…' : '🔄 Mettre à jour depuis Discogs' }}
                 </button>
                 <button type="button" class="detail-action-btn primary" @click="viewVinylDetails(selectedVinyl)">
                   ✏️ Modifier

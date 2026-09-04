@@ -427,7 +427,8 @@ func (h *DiscHandler) FetchTracks(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "ID invalide", http.StatusBadRequest)
 		return
 	}
-	list, err := h.service.FetchTracklistForDisc(r.Context(), id)
+	force := r.URL.Query().Get("force") == "true"
+	list, err := h.service.FetchTracklistForDisc(r.Context(), id, force)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

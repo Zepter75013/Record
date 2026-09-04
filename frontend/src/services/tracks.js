@@ -56,8 +56,11 @@ export async function fetchTracks(discId) {
   return parseJson(response)
 }
 
-export async function fetchTracklistOnDemand(discId) {
-  const response = await fetch(`${API_BASE_URL}/discs/${encodeURIComponent(discId)}/tracks/fetch`, {
+// force=true remplace une tracklist déjà existante par une nouvelle
+// recherche Discogs (au lieu de ne rien faire si des pistes existent déjà).
+export async function fetchTracklistOnDemand(discId, force = false) {
+  const url = `${API_BASE_URL}/discs/${encodeURIComponent(discId)}/tracks/fetch${force ? '?force=true' : ''}`
+  const response = await fetch(url, {
     method: 'POST',
     headers: authHeaders({ Accept: 'application/json' }),
   })

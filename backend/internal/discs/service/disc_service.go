@@ -416,13 +416,21 @@ func (s *DiscService) UpdateTracksForDisc(ctx context.Context, discID int, items
 // fonctionnalité (pas de discogs_release_id connu, donc re-recherche par
 // titre/artiste, avec le même risque de mauvais pressage que la recherche
 // de pochette existante).
-func (s *DiscService) FetchTracklistForDisc(ctx context.Context, discID int) ([]tracks.Track, error) {
-	existing, err := s.trackRepo.FindByVinylID(ctx, discID)
-	if err != nil {
-		return nil, err
-	}
-	if len(existing) > 0 {
-		return existing, nil
+//
+// force=false (usage normal) : ne fait rien si une tracklist existe déjà,
+// renvoie l'existante telle quelle.
+// force=true (rafraîchissement demandé explicitement par l'utilisateur) :
+// re-recherche sur Discogs et remplace la tracklist existante, y compris
+// si elle avait été saisie/modifiée manuellement.
+func (s *DiscService) FetchTracklistForDisc(ctx context.Context, discID int, force bool) ([]tracks.Track, error) {
+	if !force {
+		existing, err := s.trackRepo.FindByVinylID(ctx, discID)
+		if err != nil {
+			return nil, err
+		}
+		if len(existing) > 0 {
+			return existing, nil
+		}
 	}
 
 	disc, err := s.repo.FindByID(ctx, discID)
@@ -449,6 +457,12 @@ func (s *DiscService) FetchTracklistForDisc(ctx context.Context, discID int) ([]
 	trackList := make([]tracks.Track, len(preview.Tracks))
 	for i, t := range preview.Tracks {
 		trackList[i] = tracks.Track{Position: t.Position, Title: t.Title, Duration: t.Duration}
+	}
+
+	if force {
+		if err := s.trackRepo.DeleteByVinylID(ctx, discID); err != nil {
+			return nil, err
+		}
 	}
 	if err := s.trackRepo.CreateBatch(ctx, discID, trackList); err != nil {
 		return nil, err
