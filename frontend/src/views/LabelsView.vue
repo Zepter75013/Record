@@ -1,5 +1,6 @@
 <script setup>
 import LabelsModal from '@/components/LabelsModal.vue';
+import LabelsBulkDescriptionModal from '@/components/LabelsBulkDescriptionModal.vue';
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useApi } from '@/composables/useApi';
 
@@ -12,6 +13,7 @@ const API_URL = '/labels';
 const isModalOpen = ref(false);
 const currentLabel = ref(null);
 const apiError = ref(null);
+const isBulkModalOpen = ref(false);
 const isMobileView = ref(window.innerWidth < 768);
 
 const updateMobileView = () => {
@@ -105,6 +107,13 @@ const handleRowDoubleClick = (label) => {
   openModal(label);
 };
 
+const handleBulkLabelUpdated = ({ id, description }) => {
+  const existingIndex = labels.value.findIndex((l) => l.id === id);
+  if (existingIndex !== -1) {
+    labels.value[existingIndex] = { ...labels.value[existingIndex], description };
+  }
+};
+
 onMounted(() => {
   fetchLabels();
   window.addEventListener('resize', updateMobileView);
@@ -128,6 +137,10 @@ onBeforeUnmount(() => {
             <h1>Labels</h1>
           </div>
           <div class="toolbar">
+            <button @click="isBulkModalOpen = true" class="ghost-btn bulk-update-button">
+              <span class="icon">🔄</span>
+              Mettre à jour les descriptions
+            </button>
             <button @click="openModal()" class="primary-btn add-button">
               <span class="icon">➕</span>
               Ajouter un Label
@@ -244,6 +257,13 @@ onBeforeUnmount(() => {
 
     <LabelsModal :is-open="isModalOpen" :label-data="currentLabel" :api-error="apiError" @close="closeModal" @label-saved="handleSave" />
 
+    <LabelsBulkDescriptionModal
+      :is-open="isBulkModalOpen"
+      :labels="sortedLabels"
+      @close="isBulkModalOpen = false"
+      @label-updated="handleBulkLabelUpdated"
+    />
+
     <Teleport to="body">
       <div v-if="isConfirmModalOpen" class="modal-overlay" @click.self="isConfirmModalOpen = false">
         <div class="modal-card">
@@ -309,8 +329,9 @@ onBeforeUnmount(() => {
   border-radius: 10px;
   border-left: 4px solid var(--accent);
 }
-.toolbar { margin: 8px 0 0 0; display: flex; gap: 10px; }
+.toolbar { margin: 8px 0 0 0; display: flex; gap: 10px; flex-wrap: wrap; }
 .add-button .icon { margin-right: 8px; }
+.bulk-update-button .icon { margin-right: 8px; }
 .content-panel { padding: 20px; }
 .table-responsive { overflow-x: auto; margin-bottom: 20px; border: 1px solid var(--line); border-radius: 12px; }
 .data-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.9em; border-radius: 12px; overflow: hidden; }
