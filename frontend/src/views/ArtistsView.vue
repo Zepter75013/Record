@@ -3,6 +3,7 @@
 // records-manager/frontend/src/views/ArtistsView.vue
 // ======================================================================
 import ArtistsModal from '@/components/ArtistsModal.vue';
+import ArtistsBulkBiographyModal from '@/components/ArtistsBulkBiographyModal.vue';
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useApi } from '@/composables/useApi';
 
@@ -21,6 +22,7 @@ const API_URL = '/artists';
 const isModalOpen = ref(false);
 const currentArtist = ref(null);
 const apiError = ref(null);
+const isBulkModalOpen = ref(false);
 
 // **DÉTECTION RESPONSIVE**
 const isMobileView = ref(window.innerWidth < 768);
@@ -149,6 +151,13 @@ const handleRowDoubleClick = (artist) => {
   openModal(artist);
 };
 
+const handleBulkArtistUpdated = ({ id, biography }) => {
+  const existingIndex = artists.value.findIndex((a) => a.id === id);
+  if (existingIndex !== -1) {
+    artists.value[existingIndex] = { ...artists.value[existingIndex], biography };
+  }
+};
+
 // Lifecycle
 onMounted(() => {
   fetchArtists();
@@ -174,6 +183,10 @@ onBeforeUnmount(() => {
             <h1>Artistes</h1>
           </div>
           <div class="toolbar">
+            <button @click="isBulkModalOpen = true" class="ghost-btn bulk-update-button">
+              <span class="icon">🔄</span>
+              Mettre à jour les biographies
+            </button>
             <button @click="openModal()" class="primary-btn add-button">
               <span class="icon">➕</span>
               Ajouter un Artiste
@@ -213,6 +226,12 @@ onBeforeUnmount(() => {
                   <span class="sort-icon" v-html="getSortIcon('countryname')"></span>
                 </div>
               </th>
+              <th class="biography-column sortable" @click="sortBy('biography')">
+                <div class="sortable-content">
+                  <span class="header-text">BIOGRAPHIE</span>
+                  <span class="sort-icon" v-html="getSortIcon('biography')"></span>
+                </div>
+              </th>
               <th class="actions-column">
                 <div class="sortable-content">
                   <span class="header-text">ACTIONS</span>
@@ -235,6 +254,7 @@ onBeforeUnmount(() => {
               <td class="id-column">{{ artist.id }}</td>
               <td class="name-column">{{ artist.name || '-' }}</td>
               <td class="country-column">{{ artist.countryname || '-' }}</td>
+              <td class="biography-column" :title="artist.biography">{{ artist.biography || '-' }}</td>
               <td class="actions-column">
                 <div class="action-buttons-container">
                   <button @click.stop="openModal(artist)" class="icon-action-btn edit-button">
@@ -272,6 +292,10 @@ onBeforeUnmount(() => {
                 <span class="card-label">Pays:</span>
                 <span class="card-value">{{ artist.countryname || '-' }}</span>
               </div>
+              <div class="card-biography">
+                <span class="card-label">Biographie:</span>
+                <span class="card-value">{{ artist.biography || '-' }}</span>
+              </div>
             </div>
           </div>
           <div class="card-actions-bottom">
@@ -307,6 +331,13 @@ onBeforeUnmount(() => {
       :api-error="apiError"
       @close="closeModal"
       @artist-saved="handleSave"
+    />
+
+    <ArtistsBulkBiographyModal
+      :is-open="isBulkModalOpen"
+      :artists="sortedArtists"
+      @close="isBulkModalOpen = false"
+      @artist-updated="handleBulkArtistUpdated"
     />
 
     <!-- MODALE CONFIRMATION SUPPRESSION -->
@@ -393,6 +424,7 @@ onBeforeUnmount(() => {
 }
 .toolbar { margin: 8px 0 0 0; display: flex; gap: 10px; flex-wrap: wrap; }
 .add-button .icon { margin-right: 8px; }
+.bulk-update-button .icon { margin-right: 8px; }
 .content-panel { padding: 20px; }
 .table-responsive { overflow-x: auto; margin-bottom: 20px; border: 1px solid var(--line); border-radius: 12px; }
 .data-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.9em; border-radius: 12px; overflow: hidden; min-width: 600px; }
@@ -404,9 +436,10 @@ onBeforeUnmount(() => {
 .data-table tbody tr:hover { background: rgba(var(--tint-rgb), 0.06); }
 .data-table tbody tr.selected-row { background: rgba(59, 130, 246, 0.12) !important; border-left: 4px solid var(--accent) !important; }
 .data-table td { padding: 6px 15px; border-bottom: 1px solid var(--line-soft); text-align: left; font-size: 0.85em; height: 40px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.data-table .id-column { width: 10%; text-align: center; font-weight: 600; color: var(--text-soft); }
-.data-table .name-column { width: 40%; }
-.data-table .country-column { width: 35%; }
+.data-table .id-column { width: 8%; text-align: center; font-weight: 600; color: var(--text-soft); }
+.data-table .name-column { width: 20%; }
+.data-table .country-column { width: 17%; }
+.data-table .biography-column { width: 40%; }
 .data-table .actions-column { width: 15%; text-align: center; }
 .action-buttons-container { display: flex; gap: 8px; justify-content: center; }
 .edit-button .icon { color: var(--accent-soft); }
@@ -424,7 +457,7 @@ onBeforeUnmount(() => {
   .card-item.selected-row { border-left-color: var(--accent-soft); background: rgba(59, 130, 246, 0.08); }
   .card-main { padding: 14px; cursor: pointer; }
   .card-content { display: flex; flex-direction: column; gap: 10px; }
-  .card-id, .card-name, .card-country { display: flex; gap: 8px; }
+  .card-id, .card-name, .card-country, .card-biography { display: flex; gap: 8px; }
   .card-label { font-weight: 700; color: var(--text-soft); min-width: 60px; }
   .card-value { color: var(--text); }
   .card-actions-bottom { display: flex; gap: 8px; padding: 10px 14px; background: rgba(var(--tint-rgb), 0.04); border-top: 1px solid var(--line-soft); }
