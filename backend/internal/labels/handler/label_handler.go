@@ -131,3 +131,24 @@ func (h *LabelHandler) GetLabelByID(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(label)
 }
+
+// SuggestLabelDescription - Propose une description pour un label à partir de Discogs
+func (h *LabelHandler) SuggestLabelDescription(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "ID invalide", http.StatusBadRequest)
+		return
+	}
+
+	description, err := h.service.SuggestDescriptionForLabel(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"description": description})
+}

@@ -69,6 +69,16 @@
                   <div class="char-counter">
                     {{ formData.description?.length || 0 }}/500 caractères
                   </div>
+                  <button
+                    v-if="isEditing"
+                    type="button"
+                    @click="suggestDescription"
+                    class="suggest-description-button"
+                    :disabled="saving || suggestingDescription"
+                  >
+                    {{ suggestingDescription ? '⏳ Recherche…' : '🔄 Suggérer automatiquement (Discogs)' }}
+                  </button>
+                  <div v-if="suggestDescriptionError" class="form-error">{{ suggestDescriptionError }}</div>
                 </label>
 
                 <div class="form-grid-2cols">
@@ -249,6 +259,8 @@ const isUnsavedChangesModalOpen = ref(false);
 const isDuplicateModalOpen = ref(false);  // ✅ Ajouté
 const duplicateLabelName = ref('');      // ✅ Ajouté
 const overlayMouseDownTarget = ref(null); // Pour éviter fermeture lors de sélection texte
+const suggestingDescription = ref(false);
+const suggestDescriptionError = ref(null);
 
 const formData = ref({
   id: null,
@@ -307,6 +319,22 @@ const formatDate = (dateString) => {
 const applyPrefillName = () => {
   if (props.prefillName) {
     formData.value.name = props.prefillName;
+  }
+};
+
+const suggestDescription = async () => {
+  if (!formData.value.id) return;
+  suggestingDescription.value = true;
+  suggestDescriptionError.value = null;
+  try {
+    const suggestion = await api.post(`/labels/${formData.value.id}/description/suggest`);
+    const data = suggestion.data || suggestion;
+    formData.value.description = data.description;
+  } catch (error) {
+    console.error('Erreur suggestion description:', error);
+    suggestDescriptionError.value = error.message || 'Impossible de trouver une description pour ce label';
+  } finally {
+    suggestingDescription.value = false;
   }
 };
 
@@ -681,6 +709,29 @@ onMounted(() => {
   text-align: right;
   font-size: 0.82em;
   color: var(--text-dim);
+}
+
+.suggest-description-button {
+  margin-top: 8px;
+  padding: 8px 14px;
+  background: rgba(var(--tint-rgb), 0.05);
+  color: var(--accent-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 0.85em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.suggest-description-button:hover:not(:disabled) {
+  background: rgba(var(--tint-rgb), 0.09);
+  color: var(--accent);
+}
+
+.suggest-description-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .stats-grid {
