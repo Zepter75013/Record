@@ -3,11 +3,19 @@ package backup
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 )
 
 // settingsFile stores the user-chosen backup directory so it survives
 // server restarts, independently of where the backups themselves live.
-const settingsFile = "backup-settings.json"
+//
+// It must sit inside "backups/" (the default backup directory, mounted as
+// a Docker volume in docker-compose.yml) rather than at the app root:
+// the app root lives in the container's own filesystem layer, which is
+// recreated from scratch on every image rebuild — a file written there
+// "survives restarts" but is silently wiped on every deploy, which is
+// exactly the durability this file exists to provide.
+const settingsFile = "backups/backup-settings.json"
 
 type persistedSettings struct {
 	Directory string `json:"directory"`
@@ -28,6 +36,10 @@ func loadPersistedDirectory() (string, bool) {
 }
 
 func savePersistedDirectory(dir string) error {
+	if err := os.MkdirAll(filepath.Dir(settingsFile), 0o755); err != nil {
+		return err
+	}
+
 	data, err := json.MarshalIndent(persistedSettings{Directory: dir}, "", "  ")
 	if err != nil {
 		return err
