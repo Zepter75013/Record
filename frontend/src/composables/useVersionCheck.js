@@ -37,6 +37,21 @@ export function useVersionCheck() {
     if (document.visibilityState === 'visible') checkForUpdate()
   }
 
+  // Portable en veille (couvercle fermé) : le minuteur ne tourne plus
+  // pendant la veille, et visibilitychange ne se déclenche pas toujours
+  // au réveil (l'onglet peut rester "visible" tout du long). Le focus de
+  // la fenêtre est un signal plus fiable pour "l'utilisateur revient".
+  function handleWindowFocus() {
+    checkForUpdate()
+  }
+
+  // Restauration depuis le cache arrière/avant du navigateur (bfcache,
+  // fréquent sur Safari/mobile) : la page ne recharge rien, donc aucun des
+  // autres déclencheurs ne se déclenche sans ce cas particulier.
+  function handlePageShow(event) {
+    if (event.persisted) checkForUpdate()
+  }
+
   function reloadApp() {
     window.location.reload()
   }
@@ -45,11 +60,15 @@ export function useVersionCheck() {
     checkForUpdate()
     intervalId = setInterval(checkForUpdate, CHECK_INTERVAL_MS)
     document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleWindowFocus)
+    window.addEventListener('pageshow', handlePageShow)
   })
 
   onUnmounted(() => {
     clearInterval(intervalId)
     document.removeEventListener('visibilitychange', handleVisibilityChange)
+    window.removeEventListener('focus', handleWindowFocus)
+    window.removeEventListener('pageshow', handlePageShow)
   })
 
   return { updateAvailable, reloadApp }
