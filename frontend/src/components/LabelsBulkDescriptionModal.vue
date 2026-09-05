@@ -43,6 +43,7 @@
               <span class="bulk-status">
                 <span v-if="results[label.id]?.status === 'loading'" class="spinner-small"></span>
                 <span v-else-if="results[label.id]?.status === 'success'" class="status-ok">✅</span>
+                <span v-else-if="results[label.id]?.status === 'not-found'" class="status-not-found">➖ aucune donnée</span>
                 <span v-else-if="results[label.id]?.status === 'error'" class="status-error" :title="results[label.id]?.message">⚠️ {{ results[label.id]?.message }}</span>
                 <span v-else-if="results[label.id]?.status === 'skipped'" class="status-skipped">⏭️ annulé</span>
               </span>
@@ -56,7 +57,7 @@
             <div class="bulk-progress-text">{{ processedCount }} / {{ totalToProcess }} traités…</div>
           </div>
           <div v-else-if="hasRun" class="bulk-summary">
-            {{ successCount }} mise{{ successCount > 1 ? 's' : '' }} à jour, {{ errorCount }} échec{{ errorCount > 1 ? 's' : '' }}<span v-if="skippedCount"> , {{ skippedCount }} annulé{{ skippedCount > 1 ? 's' : '' }}</span>.
+            {{ successCount }} mise{{ successCount > 1 ? 's' : '' }} à jour, {{ notFoundCount }} sans donnée, {{ errorCount }} échec{{ errorCount > 1 ? 's' : '' }}<span v-if="skippedCount"> , {{ skippedCount }} annulé{{ skippedCount > 1 ? 's' : '' }}</span>.
           </div>
 
           <div class="modal-actions">
@@ -121,13 +122,14 @@ const selectMissingOnly = () => {
 
 const totalToProcess = ref(0);
 const processedCount = computed(() => {
-  return Object.values(results.value).filter((r) => r.status === 'success' || r.status === 'error' || r.status === 'skipped').length;
+  return Object.values(results.value).filter((r) => r.status === 'success' || r.status === 'not-found' || r.status === 'error' || r.status === 'skipped').length;
 });
 const progressPercent = computed(() => {
   if (totalToProcess.value === 0) return 0;
   return Math.round((processedCount.value / totalToProcess.value) * 100);
 });
 const successCount = computed(() => Object.values(results.value).filter((r) => r.status === 'success').length);
+const notFoundCount = computed(() => Object.values(results.value).filter((r) => r.status === 'not-found').length);
 const errorCount = computed(() => Object.values(results.value).filter((r) => r.status === 'error').length);
 const skippedCount = computed(() => Object.values(results.value).filter((r) => r.status === 'skipped').length);
 
@@ -153,11 +155,13 @@ const startRun = async () => {
     try {
       const suggestion = await api.post(`/labels/${label.id}/description/suggest`);
       const description = suggestion?.description;
-      if (!description) throw new Error('Aucune description trouvée');
-
-      await api.put(`/labels/${label.id}`, { name: label.name, description });
-      results.value[label.id] = { status: 'success' };
-      emit('label-updated', { id: label.id, description });
+      if (!description) {
+        results.value[label.id] = { status: 'not-found' };
+      } else {
+        await api.put(`/labels/${label.id}`, { name: label.name, description });
+        results.value[label.id] = { status: 'success' };
+        emit('label-updated', { id: label.id, description });
+      }
     } catch (error) {
       results.value[label.id] = { status: 'error', message: error.message || 'Échec de la mise à jour' };
     }
@@ -305,6 +309,10 @@ const handleClose = () => {
 
 .status-ok {
   color: var(--positive-text, #22c55e);
+}
+
+.status-not-found {
+  color: var(--text-dim);
 }
 
 .status-error {

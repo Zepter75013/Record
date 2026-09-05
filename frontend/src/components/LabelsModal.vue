@@ -329,7 +329,11 @@ const suggestDescription = async () => {
   try {
     const suggestion = await api.post(`/labels/${formData.value.id}/description/suggest`);
     const data = suggestion.data || suggestion;
-    formData.value.description = data.description;
+    if (data.description) {
+      formData.value.description = data.description;
+    } else {
+      suggestDescriptionError.value = 'Aucune description trouvée sur Discogs pour ce label.';
+    }
   } catch (error) {
     console.error('Erreur suggestion description:', error);
     suggestDescriptionError.value = error.message || 'Impossible de trouver une description pour ce label';

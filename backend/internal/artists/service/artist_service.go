@@ -312,8 +312,14 @@ func (s *ArtistService) SuggestBiographyForArtist(ctx context.Context, artistID 
 		return "", err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return "", fmt.Errorf("Discogs limite le débit, réessayez plus tard")
+	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("erreur API Discogs : %d", resp.StatusCode)
+		// Discogs a rejeté cette recherche précise (artiste introuvable,
+		// requête mal formée pour ce nom...) — ce n'est pas une panne de
+		// l'app, on traite ça comme "pas de donnée" plutôt qu'une erreur.
+		return "", nil
 	}
 
 	var searchResult discogsArtistSearchResponse
@@ -321,7 +327,7 @@ func (s *ArtistService) SuggestBiographyForArtist(ctx context.Context, artistID 
 		return "", err
 	}
 	if len(searchResult.Results) == 0 {
-		return "", fmt.Errorf("aucun artiste trouvé sur Discogs pour %q", artist.Name)
+		return "", nil
 	}
 
 	detailsURL := fmt.Sprintf("https://api.discogs.com/artists/%d?token=%s", searchResult.Results[0].ID, s.discogsToken)
@@ -330,8 +336,11 @@ func (s *ArtistService) SuggestBiographyForArtist(ctx context.Context, artistID 
 		return "", err
 	}
 	defer detailsResp.Body.Close()
+	if detailsResp.StatusCode == http.StatusTooManyRequests {
+		return "", fmt.Errorf("Discogs limite le débit, réessayez plus tard")
+	}
 	if detailsResp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("erreur API Discogs : %d", detailsResp.StatusCode)
+		return "", nil
 	}
 
 	var details discogsArtistDetails
@@ -341,7 +350,7 @@ func (s *ArtistService) SuggestBiographyForArtist(ctx context.Context, artistID 
 
 	biography := discogs.CleanProfile(details.Profile)
 	if biography == "" {
-		return "", fmt.Errorf("aucune biographie disponible sur Discogs pour cet artiste")
+		return "", nil
 	}
 	biography = discogs.TruncateAtWordBoundary(biography, 500)
 

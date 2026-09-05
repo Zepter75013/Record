@@ -330,7 +330,11 @@ const suggestBiography = async () => {
   suggestBiographyError.value = null;
   try {
     const suggestion = await post(`/artists/${formData.value.id}/biography/suggest`);
-    formData.value.biography = suggestion.biography;
+    if (suggestion.biography) {
+      formData.value.biography = suggestion.biography;
+    } else {
+      suggestBiographyError.value = 'Aucune biographie trouvée sur Discogs pour cet artiste.';
+    }
   } catch (error) {
     console.error('Erreur suggestion biographie:', error);
     suggestBiographyError.value = error.message || 'Impossible de trouver une biographie pour cet artiste';

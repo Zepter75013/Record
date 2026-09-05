@@ -146,8 +146,14 @@ func (s *LabelService) SuggestDescriptionForLabel(ctx context.Context, id int) (
 		return "", err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return "", fmt.Errorf("Discogs limite le débit, réessayez plus tard")
+	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("erreur API Discogs : %d", resp.StatusCode)
+		// Discogs a rejeté cette recherche précise (label introuvable, requête
+		// mal formée pour ce nom...) — ce n'est pas une panne de l'app, on
+		// traite ça comme "pas de donnée" plutôt que comme une erreur.
+		return "", nil
 	}
 
 	var searchResult discogsLabelSearchResponse
@@ -155,7 +161,7 @@ func (s *LabelService) SuggestDescriptionForLabel(ctx context.Context, id int) (
 		return "", err
 	}
 	if len(searchResult.Results) == 0 {
-		return "", fmt.Errorf("aucun label trouvé sur Discogs pour %q", label.Name)
+		return "", nil
 	}
 
 	detailsURL := fmt.Sprintf("https://api.discogs.com/labels/%d?token=%s", searchResult.Results[0].ID, s.discogsToken)
@@ -164,8 +170,11 @@ func (s *LabelService) SuggestDescriptionForLabel(ctx context.Context, id int) (
 		return "", err
 	}
 	defer detailsResp.Body.Close()
+	if detailsResp.StatusCode == http.StatusTooManyRequests {
+		return "", fmt.Errorf("Discogs limite le débit, réessayez plus tard")
+	}
 	if detailsResp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("erreur API Discogs : %d", detailsResp.StatusCode)
+		return "", nil
 	}
 
 	var details discogsLabelDetails
@@ -175,7 +184,7 @@ func (s *LabelService) SuggestDescriptionForLabel(ctx context.Context, id int) (
 
 	description := discogs.CleanProfile(details.Profile)
 	if description == "" {
-		return "", fmt.Errorf("aucune description disponible sur Discogs pour ce label")
+		return "", nil
 	}
 	description = discogs.TruncateAtWordBoundary(description, 500)
 
