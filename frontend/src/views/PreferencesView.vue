@@ -66,10 +66,15 @@ const PLATFORM_OPTIONS = [
   { value: 'spotify', label: 'Spotify', emoji: '🎧', description: 'Bouton « Écouter » pointant vers Spotify.' },
   { value: 'deezer', label: 'Deezer', emoji: '🎶', description: 'Bouton « Écouter » pointant vers Deezer.' },
   { value: 'youtube', label: 'YouTube', emoji: '📺', description: 'Bouton « Écouter » pointant vers YouTube.' },
+  { value: null, label: 'Aucune', emoji: '🚫', description: 'Pas de bouton « Écouter » automatique.' },
 ]
 
+// Sélectionner cliquait déjà sur l'option active la désélectionnait
+// silencieusement (comportement "bascule") — un reclic accidentel effaçait
+// le réglage sans aucun signal. Cliquer sélectionne toujours l'option
+// choisie ; "Aucune" est maintenant une option explicite pour désactiver.
 function selectPlatform(value) {
-  streamingPrefs.setPreferredPlatform(preferredPlatform.value === value ? null : value)
+  streamingPrefs.setPreferredPlatform(value)
 }
 
 const backups = ref([])
