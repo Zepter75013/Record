@@ -163,9 +163,11 @@ const startRun = async () => {
     }
 
     // Pause entre chaque label pour rester sous la limite de débit de Discogs
-    // (chaque suggestion fait 2 appels Discogs côté backend).
+    // (60 requêtes/min authentifiées ; chaque suggestion fait 2 appels
+    // Discogs côté backend, qui retente lui-même en cas de 429 — cette pause
+    // est une marge de sécurité en plus de ce retry).
     if (!stopRequested.value) {
-      await sleep(1000);
+      await sleep(1500);
     }
   }
 

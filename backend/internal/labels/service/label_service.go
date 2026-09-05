@@ -129,23 +129,45 @@ type discogsLabelDetails struct {
 // "[r123456]") pour ne garder que le texte lisible.
 var discogsMarkupRegex = regexp.MustCompile(`\[/?[a-z]=?[^\]]*\]`)
 
+// discogsRequest effectue une requête GET vers Discogs. En cas de 429 (débit
+// limité — chaque suggestion de description fait 2 appels Discogs, ce qui
+// arrive vite en mise à jour groupée sur de nombreux labels), elle patiente
+// puis retente au lieu d'échouer immédiatement.
 func discogsRequest(url string) (*http.Response, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "RecordsManager/1.0")
 
-	resp, err := client.Do(req)
-	if err != nil {
-		var netErr net.Error
-		if errors.As(err, &netErr) && netErr.Timeout() {
-			return nil, fmt.Errorf("Discogs a mis trop de temps à répondre, réessayez")
+	const maxAttempts = 3
+	backoff := 3 * time.Second
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return nil, err
 		}
-		return nil, fmt.Errorf("impossible de joindre Discogs : %w", err)
+		req.Header.Set("User-Agent", "RecordsManager/1.0")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			var netErr net.Error
+			if errors.As(err, &netErr) && netErr.Timeout() {
+				return nil, fmt.Errorf("Discogs a mis trop de temps à répondre, réessayez")
+			}
+			return nil, fmt.Errorf("impossible de joindre Discogs : %w", err)
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests && attempt < maxAttempts {
+			resp.Body.Close()
+			time.Sleep(backoff)
+			backoff *= 2
+			continue
+		}
+
+		return resp, nil
 	}
-	return resp, nil
+
+	// Inatteignable : la boucle ci-dessus retourne toujours, mais le
+	// compilateur exige un retour explicite en fin de fonction.
+	return nil, fmt.Errorf("échec de la requête Discogs après plusieurs tentatives")
 }
 
 // multiSpaceRegex recolle les doubles espaces laissés par le retrait des
