@@ -254,7 +254,9 @@ onBeforeUnmount(() => {
               <td class="id-column">{{ artist.id }}</td>
               <td class="name-column">{{ artist.name || '-' }}</td>
               <td class="country-column">{{ artist.countryname || '-' }}</td>
-              <td class="biography-column" :title="artist.biography">{{ artist.biography || '-' }}</td>
+              <td class="biography-column" :title="artist.biography">
+                <span class="clamp-text">{{ artist.biography || '-' }}</span>
+              </td>
               <td class="actions-column">
                 <div class="action-buttons-container">
                   <button @click.stop="openModal(artist)" class="icon-action-btn edit-button">
@@ -439,7 +441,21 @@ onBeforeUnmount(() => {
 .data-table .id-column { width: 8%; text-align: center; font-weight: 600; color: var(--text-soft); }
 .data-table .name-column { width: 20%; }
 .data-table .country-column { width: 17%; }
-.data-table .biography-column { width: 40%; }
+.data-table .biography-column {
+  width: 40%;
+  white-space: normal;
+  text-overflow: clip;
+  vertical-align: top;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.clamp-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
+}
 .data-table .actions-column { width: 15%; text-align: center; }
 .action-buttons-container { display: flex; gap: 8px; justify-content: center; }
 .edit-button .icon { color: var(--accent-soft); }

@@ -195,7 +195,9 @@ onBeforeUnmount(() => {
             >
               <td class="id-column">{{ label.id }}</td>
               <td class="name-column">{{ label.name || '-' }}</td>
-              <td class="description-column">{{ label.description || '-' }}</td>
+              <td class="description-column" :title="label.description">
+                <span class="clamp-text">{{ label.description || '-' }}</span>
+              </td>
               <td class="actions-column">
                 <div class="action-buttons-container">
                   <button @click.stop="openModal(label)" class="icon-action-btn edit-button">
@@ -345,7 +347,19 @@ onBeforeUnmount(() => {
 .data-table td { padding: 6px 15px; border-bottom: 1px solid var(--line-soft); text-align: left; font-size: 0.85em; height: 40px; color: var(--text); }
 .data-table .id-column { width: 10%; text-align: center; font-weight: 600; color: var(--text-soft); }
 .data-table .name-column { width: 30%; }
-.data-table .description-column { width: 45%; }
+.data-table .description-column {
+  width: 45%;
+  vertical-align: top;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.clamp-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
+}
 .data-table .actions-column { width: 15%; text-align: center; }
 .action-buttons-container { display: flex; gap: 8px; justify-content: center; }
 .edit-button .icon { color: var(--accent-soft); }
