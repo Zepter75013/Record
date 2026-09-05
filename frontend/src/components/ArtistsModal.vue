@@ -94,13 +94,13 @@
                   <textarea
                     id="biography"
                     v-model="formData.biography"
-                    rows="6"
+                    rows="10"
                     placeholder="Informations sur la carrière de l'artiste, style musical, influences..."
-                    maxlength="2000"
+                    maxlength="10000"
                     :disabled="saving"
                   ></textarea>
                   <div class="char-counter">
-                    {{ formData.biography?.length || 0 }}/2000 caractères
+                    {{ formData.biography?.length || 0 }}/10000 caractères
                   </div>
                   <button
                     v-if="isEditing"

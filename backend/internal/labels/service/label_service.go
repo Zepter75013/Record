@@ -191,9 +191,9 @@ func (s *LabelService) SuggestDescriptionForLabel(ctx context.Context, id int) (
 	// Tronqué avant traduction pour limiter la consommation de quota DeepL
 	// à ce qui sera effectivement affiché, puis retronqué après (le
 	// français est en général un peu plus long que l'anglais).
-	description = discogs.TruncateAtWordBoundary(description, 2200)
+	description = discogs.TruncateAtWordBoundary(description, 11000)
 	description = translate.ToFrench(s.deeplAPIKey, description)
-	description = discogs.TruncateAtWordBoundary(description, 2000)
+	description = discogs.TruncateAtWordBoundary(description, 10000)
 
 	return description, nil
 }

@@ -357,9 +357,9 @@ func (s *ArtistService) SuggestBiographyForArtist(ctx context.Context, artistID 
 	// Tronqué avant traduction pour limiter la consommation de quota DeepL
 	// à ce qui sera effectivement affiché, puis retronqué après (le
 	// français est en général un peu plus long que l'anglais).
-	biography = discogs.TruncateAtWordBoundary(biography, 2200)
+	biography = discogs.TruncateAtWordBoundary(biography, 11000)
 	biography = translate.ToFrench(s.deeplAPIKey, biography)
-	biography = discogs.TruncateAtWordBoundary(biography, 2000)
+	biography = discogs.TruncateAtWordBoundary(biography, 10000)
 
 	return biography, nil
 }

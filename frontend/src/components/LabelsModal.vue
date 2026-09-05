@@ -61,13 +61,13 @@
                   <textarea
                     id="description"
                     v-model.trim="formData.description"
-                    rows="6"
+                    rows="10"
                     placeholder="Histoire du label, artistes phares, spécialités..."
-                    maxlength="2000"
+                    maxlength="10000"
                     :disabled="saving"
                   ></textarea>
                   <div class="char-counter">
-                    {{ formData.description?.length || 0 }}/2000 caractères
+                    {{ formData.description?.length || 0 }}/10000 caractères
                   </div>
                   <button
                     v-if="isEditing"
