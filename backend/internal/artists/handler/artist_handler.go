@@ -134,6 +134,28 @@ func (h *ArtistHandler) SuggestArtistCountry(w http.ResponseWriter, r *http.Requ
 	json.NewEncoder(w).Encode(suggestion)
 }
 
+// SuggestArtistBiography - Propose une biographie pour l'artiste via Discogs
+// (ne modifie pas l'artiste, voir ArtistService.SuggestBiographyForArtist).
+func (h *ArtistHandler) SuggestArtistBiography(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "ID invalide", http.StatusBadRequest)
+		return
+	}
+
+	biography, err := h.service.SuggestBiographyForArtist(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"biography": biography})
+}
+
 // GetArtistByID - Récupère un artiste par son ID
 func (h *ArtistHandler) GetArtistByID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)

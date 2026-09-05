@@ -102,6 +102,16 @@
                   <div class="char-counter">
                     {{ formData.biography?.length || 0 }}/500 caractères
                   </div>
+                  <button
+                    v-if="isEditing"
+                    type="button"
+                    @click="suggestBiography"
+                    class="suggest-biography-button"
+                    :disabled="saving || suggestingBiography"
+                  >
+                    {{ suggestingBiography ? '⏳ Recherche…' : '🔄 Suggérer automatiquement (Discogs)' }}
+                  </button>
+                  <div v-if="suggestBiographyError" class="form-error">{{ suggestBiographyError }}</div>
                 </label>
               </div>
             </div>
@@ -248,6 +258,8 @@ const countries = ref([]);
 const isCountryModalOpen = ref(false);
 const suggestingCountry = ref(false);
 const suggestCountryError = ref(null);
+const suggestingBiography = ref(false);
+const suggestBiographyError = ref(null);
 
 // Données du formulaire
 const formData = ref({
@@ -306,6 +318,24 @@ const suggestCountry = async () => {
     suggestCountryError.value = error.message || 'Impossible de trouver le pays de cet artiste';
   } finally {
     suggestingCountry.value = false;
+  }
+};
+
+// Suggère la biographie de l'artiste via Discogs — remplit juste le champ,
+// ne sauvegarde rien tant que l'utilisateur ne clique pas sur "Mettre à
+// jour" (même principe que suggestCountry ci-dessus).
+const suggestBiography = async () => {
+  if (!formData.value.id) return;
+  suggestingBiography.value = true;
+  suggestBiographyError.value = null;
+  try {
+    const suggestion = await post(`/artists/${formData.value.id}/biography/suggest`);
+    formData.value.biography = suggestion.biography;
+  } catch (error) {
+    console.error('Erreur suggestion biographie:', error);
+    suggestBiographyError.value = error.message || 'Impossible de trouver une biographie pour cet artiste';
+  } finally {
+    suggestingBiography.value = false;
   }
 };
 
@@ -700,6 +730,29 @@ watch(() => props.artistData, (newData) => {
 }
 
 .suggest-country-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.suggest-biography-button {
+  margin-top: 8px;
+  padding: 8px 14px;
+  background: rgba(var(--tint-rgb), 0.05);
+  color: var(--accent-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 0.85em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.suggest-biography-button:hover:not(:disabled) {
+  background: rgba(var(--tint-rgb), 0.09);
+  color: var(--accent);
+}
+
+.suggest-biography-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

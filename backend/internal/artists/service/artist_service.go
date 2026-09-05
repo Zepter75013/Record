@@ -15,15 +15,17 @@ import (
 	"records-manager/backend/internal/artists/repository"
 	"records-manager/backend/internal/countries"
 	countriesRepo "records-manager/backend/internal/countries/repository"
+	"records-manager/backend/internal/discogs"
 )
 
 type ArtistService struct {
-	repo        repository.ArtistRepository
-	countryRepo countriesRepo.CountryRepository
+	repo         repository.ArtistRepository
+	countryRepo  countriesRepo.CountryRepository
+	discogsToken string
 }
 
-func NewArtistService(repo repository.ArtistRepository, countryRepo countriesRepo.CountryRepository) *ArtistService {
-	return &ArtistService{repo: repo, countryRepo: countryRepo}
+func NewArtistService(repo repository.ArtistRepository, countryRepo countriesRepo.CountryRepository, discogsToken string) *ArtistService {
+	return &ArtistService{repo: repo, countryRepo: countryRepo, discogsToken: discogsToken}
 }
 
 func (s *ArtistService) CreateArtist(ctx context.Context, name, biography string, countryID *int) (*artists.Artist, error) {
@@ -272,4 +274,76 @@ func (s *ArtistService) SuggestCountryForArtist(ctx context.Context, artistID in
 		return nil, err
 	}
 	return &CountrySuggestion{CountryID: newCountry.ID, Name: newCountry.Name, Code: newCountry.Code}, nil
+}
+
+type discogsArtistSearchResponse struct {
+	Results []struct {
+		ID int `json:"id"`
+	} `json:"results"`
+}
+
+type discogsArtistDetails struct {
+	Profile string `json:"profile"`
+}
+
+// SuggestBiographyForArtist propose une biographie pour un artiste à partir
+// de son profil Discogs (contrairement au pays, mal structuré côté Discogs
+// pour les artistes — d'où l'usage de MusicBrainz pour SuggestCountryForArtist
+// — le profil texte, lui, est disponible et adapté à une biographie). Ne
+// modifie jamais l'artiste lui-même — c'est à l'utilisateur de valider en
+// enregistrant le formulaire.
+func (s *ArtistService) SuggestBiographyForArtist(ctx context.Context, artistID int) (string, error) {
+	if s.discogsToken == "" {
+		return "", fmt.Errorf("le token Discogs n'est pas configuré")
+	}
+
+	artist, err := s.repo.FindByID(ctx, artistID)
+	if err != nil {
+		return "", fmt.Errorf("artiste introuvable")
+	}
+	if artist == nil {
+		return "", fmt.Errorf("artiste introuvable")
+	}
+
+	searchURL := fmt.Sprintf("https://api.discogs.com/database/search?type=artist&q=%s&token=%s",
+		strings.ReplaceAll(artist.Name, " ", "+"), s.discogsToken)
+	resp, err := discogs.Request(searchURL)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("erreur API Discogs : %d", resp.StatusCode)
+	}
+
+	var searchResult discogsArtistSearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&searchResult); err != nil {
+		return "", err
+	}
+	if len(searchResult.Results) == 0 {
+		return "", fmt.Errorf("aucun artiste trouvé sur Discogs pour %q", artist.Name)
+	}
+
+	detailsURL := fmt.Sprintf("https://api.discogs.com/artists/%d?token=%s", searchResult.Results[0].ID, s.discogsToken)
+	detailsResp, err := discogs.Request(detailsURL)
+	if err != nil {
+		return "", err
+	}
+	defer detailsResp.Body.Close()
+	if detailsResp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("erreur API Discogs : %d", detailsResp.StatusCode)
+	}
+
+	var details discogsArtistDetails
+	if err := json.NewDecoder(detailsResp.Body).Decode(&details); err != nil {
+		return "", err
+	}
+
+	biography := discogs.CleanProfile(details.Profile)
+	if biography == "" {
+		return "", fmt.Errorf("aucune biographie disponible sur Discogs pour cet artiste")
+	}
+	biography = discogs.TruncateAtWordBoundary(biography, 500)
+
+	return biography, nil
 }

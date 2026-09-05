@@ -6,13 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
+	"records-manager/backend/internal/discogs"
 	"records-manager/backend/internal/labels"
 	"records-manager/backend/internal/labels/repository"
-	"regexp"
 	"strings"
-	"time"
 )
 
 type LabelService struct {
@@ -124,78 +122,6 @@ type discogsLabelDetails struct {
 	Profile string `json:"profile"`
 }
 
-// discogsMarkupRegex retire les balises de mise en forme propres à Discogs
-// dans les textes de profil (ex: "[a=Depeche Mode]", "[l=Mute Records]",
-// "[r123456]") pour ne garder que le texte lisible.
-var discogsMarkupRegex = regexp.MustCompile(`\[/?[a-z]=?[^\]]*\]`)
-
-// discogsRequest effectue une requête GET vers Discogs. En cas de 429 (débit
-// limité — chaque suggestion de description fait 2 appels Discogs, ce qui
-// arrive vite en mise à jour groupée sur de nombreux labels), elle patiente
-// puis retente au lieu d'échouer immédiatement.
-func discogsRequest(url string) (*http.Response, error) {
-	client := &http.Client{Timeout: 10 * time.Second}
-
-	const maxAttempts = 3
-	backoff := 3 * time.Second
-
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		req, err := http.NewRequest("GET", url, nil)
-		if err != nil {
-			return nil, err
-		}
-		req.Header.Set("User-Agent", "RecordsManager/1.0")
-
-		resp, err := client.Do(req)
-		if err != nil {
-			var netErr net.Error
-			if errors.As(err, &netErr) && netErr.Timeout() {
-				return nil, fmt.Errorf("Discogs a mis trop de temps à répondre, réessayez")
-			}
-			return nil, fmt.Errorf("impossible de joindre Discogs : %w", err)
-		}
-
-		if resp.StatusCode == http.StatusTooManyRequests && attempt < maxAttempts {
-			resp.Body.Close()
-			time.Sleep(backoff)
-			backoff *= 2
-			continue
-		}
-
-		return resp, nil
-	}
-
-	// Inatteignable : la boucle ci-dessus retourne toujours, mais le
-	// compilateur exige un retour explicite en fin de fonction.
-	return nil, fmt.Errorf("échec de la requête Discogs après plusieurs tentatives")
-}
-
-// multiSpaceRegex recolle les doubles espaces laissés par le retrait des
-// balises Discogs (ex: "par [a=Ivo Watts-Russell] et" -> "par  et").
-var multiSpaceRegex = regexp.MustCompile(`[ \t]{2,}`)
-
-func cleanDiscogsProfile(profile string) string {
-	cleaned := discogsMarkupRegex.ReplaceAllString(profile, "")
-	cleaned = strings.ReplaceAll(cleaned, "\r\n", "\n")
-	cleaned = multiSpaceRegex.ReplaceAllString(cleaned, " ")
-	cleaned = strings.TrimSpace(cleaned)
-	return cleaned
-}
-
-// truncateAtWordBoundary coupe une chaîne à au plus maxRunes runes, en
-// reculant jusqu'au dernier espace pour éviter de couper un mot en deux.
-func truncateAtWordBoundary(s string, maxRunes int) string {
-	runes := []rune(s)
-	if len(runes) <= maxRunes {
-		return s
-	}
-	truncated := string(runes[:maxRunes])
-	if idx := strings.LastIndexAny(truncated, " \n"); idx > 0 {
-		truncated = truncated[:idx]
-	}
-	return strings.TrimSpace(truncated)
-}
-
 // SuggestDescriptionForLabel propose une description pour un label à partir
 // de son profil Discogs. Ne modifie jamais le label lui-même — c'est à
 // l'utilisateur de valider en enregistrant le formulaire (bouton "Mettre à
@@ -215,7 +141,7 @@ func (s *LabelService) SuggestDescriptionForLabel(ctx context.Context, id int) (
 
 	searchURL := fmt.Sprintf("https://api.discogs.com/database/search?type=label&q=%s&token=%s",
 		strings.ReplaceAll(label.Name, " ", "+"), s.discogsToken)
-	resp, err := discogsRequest(searchURL)
+	resp, err := discogs.Request(searchURL)
 	if err != nil {
 		return "", err
 	}
@@ -233,7 +159,7 @@ func (s *LabelService) SuggestDescriptionForLabel(ctx context.Context, id int) (
 	}
 
 	detailsURL := fmt.Sprintf("https://api.discogs.com/labels/%d?token=%s", searchResult.Results[0].ID, s.discogsToken)
-	detailsResp, err := discogsRequest(detailsURL)
+	detailsResp, err := discogs.Request(detailsURL)
 	if err != nil {
 		return "", err
 	}
@@ -247,11 +173,11 @@ func (s *LabelService) SuggestDescriptionForLabel(ctx context.Context, id int) (
 		return "", err
 	}
 
-	description := cleanDiscogsProfile(details.Profile)
+	description := discogs.CleanProfile(details.Profile)
 	if description == "" {
 		return "", fmt.Errorf("aucune description disponible sur Discogs pour ce label")
 	}
-	description = truncateAtWordBoundary(description, 500)
+	description = discogs.TruncateAtWordBoundary(description, 500)
 
 	return description, nil
 }
