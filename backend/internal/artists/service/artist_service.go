@@ -16,16 +16,18 @@ import (
 	"records-manager/backend/internal/countries"
 	countriesRepo "records-manager/backend/internal/countries/repository"
 	"records-manager/backend/internal/discogs"
+	"records-manager/backend/internal/translate"
 )
 
 type ArtistService struct {
 	repo         repository.ArtistRepository
 	countryRepo  countriesRepo.CountryRepository
 	discogsToken string
+	deeplAPIKey  string
 }
 
-func NewArtistService(repo repository.ArtistRepository, countryRepo countriesRepo.CountryRepository, discogsToken string) *ArtistService {
-	return &ArtistService{repo: repo, countryRepo: countryRepo, discogsToken: discogsToken}
+func NewArtistService(repo repository.ArtistRepository, countryRepo countriesRepo.CountryRepository, discogsToken, deeplAPIKey string) *ArtistService {
+	return &ArtistService{repo: repo, countryRepo: countryRepo, discogsToken: discogsToken, deeplAPIKey: deeplAPIKey}
 }
 
 func (s *ArtistService) CreateArtist(ctx context.Context, name, biography string, countryID *int) (*artists.Artist, error) {
@@ -352,6 +354,11 @@ func (s *ArtistService) SuggestBiographyForArtist(ctx context.Context, artistID 
 	if biography == "" {
 		return "", nil
 	}
+	// Tronqué avant traduction pour limiter la consommation de quota DeepL
+	// à ce qui sera effectivement affiché, puis retronqué après (le
+	// français est en général un peu plus long que l'anglais).
+	biography = discogs.TruncateAtWordBoundary(biography, 600)
+	biography = translate.ToFrench(s.deeplAPIKey, biography)
 	biography = discogs.TruncateAtWordBoundary(biography, 500)
 
 	return biography, nil

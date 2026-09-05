@@ -10,16 +10,18 @@ import (
 	"records-manager/backend/internal/discogs"
 	"records-manager/backend/internal/labels"
 	"records-manager/backend/internal/labels/repository"
+	"records-manager/backend/internal/translate"
 	"strings"
 )
 
 type LabelService struct {
 	repo         repository.LabelRepository
 	discogsToken string
+	deeplAPIKey  string
 }
 
-func NewLabelService(repo repository.LabelRepository, discogsToken string) *LabelService {
-	return &LabelService{repo: repo, discogsToken: discogsToken}
+func NewLabelService(repo repository.LabelRepository, discogsToken, deeplAPIKey string) *LabelService {
+	return &LabelService{repo: repo, discogsToken: discogsToken, deeplAPIKey: deeplAPIKey}
 }
 
 func (s *LabelService) CreateLabel(ctx context.Context, name, description string) (*labels.Label, error) {
@@ -186,6 +188,11 @@ func (s *LabelService) SuggestDescriptionForLabel(ctx context.Context, id int) (
 	if description == "" {
 		return "", nil
 	}
+	// Tronqué avant traduction pour limiter la consommation de quota DeepL
+	// à ce qui sera effectivement affiché, puis retronqué après (le
+	// français est en général un peu plus long que l'anglais).
+	description = discogs.TruncateAtWordBoundary(description, 600)
+	description = translate.ToFrench(s.deeplAPIKey, description)
 	description = discogs.TruncateAtWordBoundary(description, 500)
 
 	return description, nil

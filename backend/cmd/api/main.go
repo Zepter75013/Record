@@ -276,6 +276,15 @@ func main() {
 		log.Println("  ⚠️  RAWG_API_KEY: non configuré")
 	}
 
+	deeplAPIKey := os.Getenv("DEEPL_API_KEY")
+	if deeplAPIKey != "" {
+		log.Printf("  📌 DEEPL_API_KEY: %s...%s (✅ configuré)",
+			deeplAPIKey[:min(5, len(deeplAPIKey))],
+			deeplAPIKey[max(0, len(deeplAPIKey)-5):])
+	} else {
+		log.Println("  ⚠️  DEEPL_API_KEY: non configuré — descriptions/biographies suggérées en anglais")
+	}
+
 	uploadsDir := os.Getenv("UPLOADS_DIR")
 	log.Printf("  📌 UPLOADS_DIR: %s", uploadsDir)
 
@@ -348,9 +357,9 @@ func main() {
 	passwordResetService := userservice.NewPasswordResetService(userRepository, resetTokenRepo, emailService) // 🆕 AJOUTÉ
 	formatService := formatservice.NewFormatService(formatRepository)
 	genreService := genreservice.NewGenreService(genreRepository)
-	artistService := artistservice.NewArtistService(artistRepository, countryRepository, discogsToken)
+	artistService := artistservice.NewArtistService(artistRepository, countryRepository, discogsToken, deeplAPIKey)
 	countryService := countryservice.NewCountryService(countryRepository)
-	labelService := labelservice.NewLabelService(labelRepository, discogsToken)
+	labelService := labelservice.NewLabelService(labelRepository, discogsToken, deeplAPIKey)
 	statsService := statsservice.NewStatsService(statsRepository)
 	discService := discservice.NewDiscService(discRepository, discogsToken, uploadsDir, trackRepository)
 	platformService := platformservice.NewPlatformService(platformRepository)
