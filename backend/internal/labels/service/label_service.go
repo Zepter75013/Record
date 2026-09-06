@@ -7,21 +7,25 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"records-manager/backend/internal/countries"
+	countriesRepo "records-manager/backend/internal/countries/repository"
 	"records-manager/backend/internal/discogs"
 	"records-manager/backend/internal/labels"
 	"records-manager/backend/internal/labels/repository"
+	"records-manager/backend/internal/musicbrainz"
 	"records-manager/backend/internal/translate"
 	"strings"
 )
 
 type LabelService struct {
 	repo         repository.LabelRepository
+	countryRepo  countriesRepo.CountryRepository
 	discogsToken string
 	deeplAPIKey  string
 }
 
-func NewLabelService(repo repository.LabelRepository, discogsToken, deeplAPIKey string) *LabelService {
-	return &LabelService{repo: repo, discogsToken: discogsToken, deeplAPIKey: deeplAPIKey}
+func NewLabelService(repo repository.LabelRepository, countryRepo countriesRepo.CountryRepository, discogsToken, deeplAPIKey string) *LabelService {
+	return &LabelService{repo: repo, countryRepo: countryRepo, discogsToken: discogsToken, deeplAPIKey: deeplAPIKey}
 }
 
 func (s *LabelService) CreateLabel(ctx context.Context, name, description string, countryID *int) (*labels.Label, error) {
@@ -198,4 +202,52 @@ func (s *LabelService) SuggestDescriptionForLabel(ctx context.Context, id int) (
 	description = discogs.TruncateAtWordBoundary(description, 10000)
 
 	return description, nil
+}
+
+// CountrySuggestion est la proposition de pays renvoyée à l'utilisateur pour
+// validation — country_id est toujours renseigné (le pays est créé dans
+// records_countries s'il n'y existait pas encore), mais rien n'est touché
+// sur le label lui-même : c'est à l'utilisateur de valider en enregistrant
+// le formulaire (bouton "Mettre à jour").
+type CountrySuggestion struct {
+	CountryID int    `json:"country_id"`
+	Name      string `json:"name"`
+	Code      string `json:"code"`
+}
+
+// SuggestCountryForLabel propose un pays pour un label à partir de
+// MusicBrainz (Discogs, lui, ne structure pas de champ pays pour les
+// labels). Ne modifie jamais le label lui-même — seul le pays est créé
+// dans records_countries si besoin, comme une simple table de référence
+// partagée.
+func (s *LabelService) SuggestCountryForLabel(ctx context.Context, id int) (*CountrySuggestion, error) {
+	label, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return nil, errors.New("label non trouvé")
+	}
+	if label == nil {
+		return nil, errors.New("label non trouvé")
+	}
+
+	code, name, err := musicbrainz.SearchCountry("label", label.Name)
+	if err != nil {
+		return nil, err
+	}
+	if alias, ok := musicbrainz.CountryAliases[code]; ok {
+		code = alias
+	}
+
+	existing, err := s.countryRepo.FindByCode(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return &CountrySuggestion{CountryID: existing.ID, Name: existing.Name, Code: existing.Code}, nil
+	}
+
+	newCountry := &countries.Country{Name: name, Code: code}
+	if err := s.countryRepo.Create(ctx, newCountry); err != nil {
+		return nil, err
+	}
+	return &CountrySuggestion{CountryID: newCountry.ID, Name: newCountry.Name, Code: newCountry.Code}, nil
 }

@@ -94,6 +94,16 @@
                         {{ country.name }}
                       </option>
                     </select>
+                    <button
+                      v-if="isEditing"
+                      type="button"
+                      @click="suggestCountry"
+                      class="suggest-country-button"
+                      :disabled="saving || suggestingCountry"
+                    >
+                      {{ suggestingCountry ? '⏳ Recherche…' : '🔄 Suggérer automatiquement (MusicBrainz)' }}
+                    </button>
+                    <div v-if="suggestCountryError" class="form-error">{{ suggestCountryError }}</div>
                   </label>
                   <label class="form-field">
                     <span>Année de fondation</span>
@@ -261,6 +271,8 @@ const duplicateLabelName = ref('');      // ✅ Ajouté
 const overlayMouseDownTarget = ref(null); // Pour éviter fermeture lors de sélection texte
 const suggestingDescription = ref(false);
 const suggestDescriptionError = ref(null);
+const suggestingCountry = ref(false);
+const suggestCountryError = ref(null);
 
 const formData = ref({
   id: null,
@@ -339,6 +351,24 @@ const suggestDescription = async () => {
     suggestDescriptionError.value = error.message || 'Impossible de trouver une description pour ce label';
   } finally {
     suggestingDescription.value = false;
+  }
+};
+
+const suggestCountry = async () => {
+  if (!formData.value.id) return;
+  suggestingCountry.value = true;
+  suggestCountryError.value = null;
+  try {
+    const suggestion = await api.post(`/labels/${formData.value.id}/country/suggest`);
+    if (!countries.value.some((c) => c.id === suggestion.country_id)) {
+      countries.value.push({ id: suggestion.country_id, name: suggestion.name, code: suggestion.code });
+    }
+    formData.value.country_id = suggestion.country_id;
+  } catch (error) {
+    console.error('Erreur suggestion pays:', error);
+    suggestCountryError.value = error.message || 'Impossible de trouver le pays de ce label';
+  } finally {
+    suggestingCountry.value = false;
   }
 };
 
@@ -734,6 +764,29 @@ onMounted(() => {
 }
 
 .suggest-description-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.suggest-country-button {
+  margin-top: 8px;
+  padding: 8px 14px;
+  background: rgba(var(--tint-rgb), 0.05);
+  color: var(--accent-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 0.85em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.suggest-country-button:hover:not(:disabled) {
+  background: rgba(var(--tint-rgb), 0.09);
+  color: var(--accent);
+}
+
+.suggest-country-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

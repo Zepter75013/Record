@@ -154,3 +154,25 @@ func (h *LabelHandler) SuggestLabelDescription(w http.ResponseWriter, r *http.Re
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"description": description})
 }
+
+// SuggestLabelCountry - Propose un pays pour le label via MusicBrainz
+// (ne modifie pas le label, voir LabelService.SuggestCountryForLabel).
+func (h *LabelHandler) SuggestLabelCountry(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "ID invalide", http.StatusBadRequest)
+		return
+	}
+
+	suggestion, err := h.service.SuggestCountryForLabel(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(suggestion)
+}

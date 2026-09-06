@@ -359,7 +359,7 @@ func main() {
 	genreService := genreservice.NewGenreService(genreRepository)
 	artistService := artistservice.NewArtistService(artistRepository, countryRepository, discogsToken, deeplAPIKey)
 	countryService := countryservice.NewCountryService(countryRepository)
-	labelService := labelservice.NewLabelService(labelRepository, discogsToken, deeplAPIKey)
+	labelService := labelservice.NewLabelService(labelRepository, countryRepository, discogsToken, deeplAPIKey)
 	statsService := statsservice.NewStatsService(statsRepository)
 	discService := discservice.NewDiscService(discRepository, discogsToken, uploadsDir, trackRepository)
 	platformService := platformservice.NewPlatformService(platformRepository)
@@ -497,6 +497,7 @@ func main() {
 	r.HandleFunc("/api/labels/{id}", labelHandler.UpdateLabel).Methods("PUT")
 	r.HandleFunc("/api/labels/{id}", labelHandler.DeleteLabel).Methods("DELETE")
 	r.HandleFunc("/api/labels/{id}/description/suggest", labelHandler.SuggestLabelDescription).Methods("POST")
+	r.HandleFunc("/api/labels/{id}/country/suggest", labelHandler.SuggestLabelCountry).Methods("POST")
 
 	// Platforms (jeux vidéo)
 	r.HandleFunc("/api/platforms", platformHandler.GetAllPlatforms).Methods("GET")
