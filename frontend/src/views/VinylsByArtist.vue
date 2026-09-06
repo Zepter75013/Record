@@ -142,9 +142,20 @@ const loadVinylTracks = async (vinyl) => {
   }
 }
 
+// Liste des albums de l'artiste : repliée automatiquement après une
+// sélection pour laisser de la place à la fiche détaillée (surtout utile
+// sur mobile où les deux sont empilés verticalement) — un clic sur l'en-
+// tête ou le résumé replié permet de la rouvrir pour choisir un autre
+// disque.
+const isAlbumsListCollapsed = ref(false)
+
 const selectVinyl = (vinyl) => {
   selectedVinyl.value = vinyl
   loadVinylTracks(vinyl)
+  // Rien à replier s'il n'y a pas de disque sélectionné (liste vide) : le
+  // bouton pour rouvrir la liste n'existe que quand selectedVinyl est
+  // renseigné, la replier quand même la rendrait irréouvrable.
+  if (vinyl) isAlbumsListCollapsed.value = true
 }
 
 // Recherche une nouvelle tracklist sur Discogs, sans rien écraser tout de
@@ -311,6 +322,7 @@ const backToList = () => {
   selectedArtist.value = null
   selectedVinyl.value = null
   vinylTracks.value = []
+  isAlbumsListCollapsed.value = false
 }
 
 // Édition d'un disque : ouvre la modale directement sur cet écran (pas de
@@ -653,10 +665,33 @@ onMounted(() => {
       <div class="detail-layout">
         <!-- Liste des albums de l'artiste -->
         <aside class="albums-sidebar">
-          <div class="albums-sidebar-header">
+          <button
+            v-if="selectedVinyl"
+            type="button"
+            class="albums-sidebar-header albums-toggle-btn"
+            @click="isAlbumsListCollapsed = !isAlbumsListCollapsed"
+          >
+            <span>Albums</span>
+            <span class="albums-count">{{ sortedArtistVinyls.length }}</span>
+            <span class="albums-toggle-chevron" :class="{ 'is-collapsed': isAlbumsListCollapsed }">▾</span>
+          </button>
+          <div v-else class="albums-sidebar-header">
             <span>Albums</span>
             <span class="albums-count">{{ sortedArtistVinyls.length }}</span>
           </div>
+
+          <button
+            v-if="selectedVinyl && isAlbumsListCollapsed"
+            type="button"
+            class="album-list-item albums-collapsed-summary active"
+            @click="isAlbumsListCollapsed = false"
+          >
+            <span class="album-year">{{ selectedVinyl.release_year || '—' }}</span>
+            <span class="album-title">{{ selectedVinyl.title }}</span>
+            <span class="albums-change-hint">Changer</span>
+          </button>
+
+          <template v-if="!isAlbumsListCollapsed">
           <div class="albums-sort-controls">
             <button
               type="button"
@@ -694,6 +729,7 @@ onMounted(() => {
               <p>Aucun disque pour cet artiste</p>
             </div>
           </div>
+          </template>
         </aside>
 
         <!-- Fiche détaillée de l'album sélectionné -->
@@ -1471,6 +1507,45 @@ onMounted(() => {
   font-size: 0.8em;
   letter-spacing: 0.5px;
   margin-bottom: 8px;
+}
+
+.albums-toggle-btn {
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  gap: 8px;
+  font-family: inherit;
+}
+
+.albums-toggle-btn:hover {
+  color: var(--text);
+}
+
+.albums-toggle-chevron {
+  margin-left: auto;
+  transition: transform 0.2s ease;
+}
+
+.albums-toggle-chevron.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+.albums-collapsed-summary {
+  width: 100%;
+  cursor: pointer;
+}
+
+.albums-change-hint {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 0.78em;
+  color: var(--accent-soft);
+  font-weight: 600;
+}
+
+.albums-collapsed-summary.active .albums-change-hint {
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .albums-count {
