@@ -11,12 +11,14 @@ import RecentDiscs from '@/components/RecentDiscs.vue'
 import RecentGames from '@/components/RecentGames.vue'
 import MapWidget from '@/components/MapWidget.vue'
 import AboutModal from '@/components/AboutModal.vue'
+import DiscsModal from '@/components/DiscsModal/DiscsModal.vue'
 
 // Composables
 import { useStats } from '@/composables/useStats'
 import { useGameStats } from '@/composables/useGameStats'
 import { useTooltips } from '@/composables/useTooltips'
 import { useIdleTimeout } from '@/composables/useIdleTimeout'
+import { useApi } from '@/composables/useApi'
 
 const route = useRoute()
 const router = useRouter()
@@ -179,6 +181,61 @@ const {
   fetchPublisherDistribution,
   fetchRecentGames
 } = useGameStats()
+
+// Édition rapide d'un disque depuis le widget "Derniers ajouts" (double-clic)
+const { put: apiPut } = useApi()
+const isEditDiscModalOpen = ref(false)
+const editDisc = ref(null)
+const isSavingDisc = ref(false)
+const editDiscApiError = ref(null)
+
+const openEditDiscModal = (disc) => {
+  editDiscApiError.value = null
+  editDisc.value = { ...disc }
+  isEditDiscModalOpen.value = true
+}
+
+const closeEditDiscModal = () => {
+  editDiscApiError.value = null
+  isEditDiscModalOpen.value = false
+  editDisc.value = null
+  isSavingDisc.value = false
+}
+
+const saveEditedDisc = async (formData) => {
+  editDiscApiError.value = null
+  isSavingDisc.value = true
+  try {
+    const body = {
+      title: formData.title?.trim() || '',
+      artist_id: formData.artist_id || null,
+      genre_id: formData.genre_id || null,
+      format_id: formData.format_id || null,
+      country_id: formData.country_id || null,
+      label_id: formData.label_id || null,
+      release_year: formData.release_year ? parseInt(formData.release_year) : null,
+      barcode: formData.barcode?.trim() || null,
+      price: formData.price !== undefined && formData.price !== '' ? parseFloat(formData.price) : null,
+      quantity: formData.quantity !== undefined && formData.quantity !== '' ? parseInt(formData.quantity) : 1,
+      notes: formData.notes?.trim() || null,
+      isrc: formData.isrc?.trim() || null
+    }
+    if (formData.cover_image === '') body.cover_image = ''
+    else if (formData.cover_image) body.cover_image = formData.cover_image
+
+    await apiPut(`discs/${formData.id}`, body)
+
+    // Recharge les derniers ajouts pour refléter la modification (couverture,
+    // titre... peuvent être affichés dans le widget).
+    await fetchRecentDiscs()
+
+    closeEditDiscModal()
+  } catch (err) {
+    editDiscApiError.value = err.message || 'Erreur lors de la sauvegarde du disque'
+  } finally {
+    isSavingDisc.value = false
+  }
+}
 
 const {
   tooltip,
@@ -759,6 +816,7 @@ watch(() => route.path, async (newPath) => {
               <RecentDiscs
                 :discs="recentDiscs"
                 @image-error="handleImageError"
+                @edit-disc="openEditDiscModal"
                 class="recent-widget"
               />
 
@@ -939,6 +997,15 @@ watch(() => route.path, async (newPath) => {
     </Teleport>
 
     <AboutModal v-model="isAboutModalOpen" />
+
+    <DiscsModal
+      :is-open="isEditDiscModalOpen"
+      :disc-data="editDisc"
+      :api-error="editDiscApiError"
+      :is-saving="isSavingDisc"
+      @close="closeEditDiscModal"
+      @save="saveEditedDisc"
+    />
   </div>
 </template>
 

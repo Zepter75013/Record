@@ -9,7 +9,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['image-error']);
+const emit = defineEmits(['image-error', 'edit-disc']);
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '—';
@@ -34,11 +34,13 @@ const handleImageError = (e, disc) => {
       Aucun disque récent
     </div>
     <div v-else class="recent-activity-list">
-      <div 
-        v-for="(disc, index) in discs" 
-        :key="disc.id" 
+      <div
+        v-for="(disc, index) in discs"
+        :key="disc.id"
         class="activity-item"
         :class="{ 'even': index % 2 === 1 }"
+        title="Double-cliquer pour modifier"
+        @dblclick="emit('edit-disc', disc)"
       >
         <div class="cover-container">
           <img
@@ -127,6 +129,7 @@ const handleImageError = (e, disc) => {
   border: 1px solid var(--line-soft);
   transition: all 0.3s ease;
   position: relative;
+  cursor: pointer;
   overflow: hidden;
 }
 
