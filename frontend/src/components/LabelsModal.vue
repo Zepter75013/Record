@@ -359,14 +359,31 @@ const suggestCountry = async () => {
   suggestingCountry.value = true;
   suggestCountryError.value = null;
   try {
-    const suggestion = await api.post(`/labels/${formData.value.id}/country/suggest`);
-    if (!countries.value.some((c) => c.id === suggestion.country_id)) {
-      countries.value.push({ id: suggestion.country_id, name: suggestion.name, code: suggestion.code });
+    const suggestion = await api.post(`/labels/${formData.value.id}/info/suggest`);
+    let foundAnything = false;
+
+    if (suggestion.country_id) {
+      if (!countries.value.some((c) => c.id === suggestion.country_id)) {
+        countries.value.push({ id: suggestion.country_id, name: suggestion.country_name, code: suggestion.country_code });
+      }
+      formData.value.country_id = suggestion.country_id;
+      foundAnything = true;
     }
-    formData.value.country_id = suggestion.country_id;
+    if (suggestion.founding_year) {
+      formData.value.founding_year = suggestion.founding_year;
+      foundAnything = true;
+    }
+    if (suggestion.website) {
+      formData.value.website = suggestion.website;
+      foundAnything = true;
+    }
+
+    if (!foundAnything) {
+      suggestCountryError.value = 'Aucune information trouvée sur MusicBrainz pour ce label.';
+    }
   } catch (error) {
     console.error('Erreur suggestion pays:', error);
-    suggestCountryError.value = error.message || 'Impossible de trouver le pays de ce label';
+    suggestCountryError.value = error.message || 'Impossible de trouver des informations pour ce label';
   } finally {
     suggestingCountry.value = false;
   }

@@ -497,7 +497,7 @@ func main() {
 	r.HandleFunc("/api/labels/{id}", labelHandler.UpdateLabel).Methods("PUT")
 	r.HandleFunc("/api/labels/{id}", labelHandler.DeleteLabel).Methods("DELETE")
 	r.HandleFunc("/api/labels/{id}/description/suggest", labelHandler.SuggestLabelDescription).Methods("POST")
-	r.HandleFunc("/api/labels/{id}/country/suggest", labelHandler.SuggestLabelCountry).Methods("POST")
+	r.HandleFunc("/api/labels/{id}/info/suggest", labelHandler.SuggestLabelInfo).Methods("POST")
 
 	// Platforms (jeux vidéo)
 	r.HandleFunc("/api/platforms", platformHandler.GetAllPlatforms).Methods("GET")

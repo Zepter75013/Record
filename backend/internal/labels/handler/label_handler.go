@@ -20,15 +20,19 @@ func NewLabelHandler(service *labelsService.LabelService) *LabelHandler {
 }
 
 type CreateLabelRequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	CountryID   *int   `json:"country_id"`
+	Name         string  `json:"name"`
+	Description  string  `json:"description"`
+	CountryID    *int    `json:"country_id"`
+	FoundingYear *int    `json:"founding_year"`
+	Website      *string `json:"website"`
 }
 
 type UpdateLabelRequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	CountryID   *int   `json:"country_id"`
+	Name         string  `json:"name"`
+	Description  string  `json:"description"`
+	CountryID    *int    `json:"country_id"`
+	FoundingYear *int    `json:"founding_year"`
+	Website      *string `json:"website"`
 }
 
 func (h *LabelHandler) CreateLabel(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +42,7 @@ func (h *LabelHandler) CreateLabel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	label, err := h.service.CreateLabel(r.Context(), req.Name, req.Description, req.CountryID)
+	label, err := h.service.CreateLabel(r.Context(), req.Name, req.Description, req.CountryID, req.FoundingYear, req.Website)
 	if err != nil {
 		if err.Error() == "un label avec ce nom existe déjà" {
 			http.Error(w, err.Error(), http.StatusConflict)
@@ -80,7 +84,7 @@ func (h *LabelHandler) UpdateLabel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	label, err := h.service.UpdateLabel(r.Context(), id, req.Name, req.Description, req.CountryID)
+	label, err := h.service.UpdateLabel(r.Context(), id, req.Name, req.Description, req.CountryID, req.FoundingYear, req.Website)
 	if err != nil {
 		if err.Error() == "un autre label avec ce nom existe déjà" {
 			http.Error(w, err.Error(), http.StatusConflict)
@@ -155,9 +159,9 @@ func (h *LabelHandler) SuggestLabelDescription(w http.ResponseWriter, r *http.Re
 	json.NewEncoder(w).Encode(map[string]string{"description": description})
 }
 
-// SuggestLabelCountry - Propose un pays pour le label via MusicBrainz
-// (ne modifie pas le label, voir LabelService.SuggestCountryForLabel).
-func (h *LabelHandler) SuggestLabelCountry(w http.ResponseWriter, r *http.Request) {
+// SuggestLabelInfo - Propose pays/année de fondation/site web pour le label
+// via MusicBrainz (ne modifie pas le label, voir LabelService.SuggestLabelInfo).
+func (h *LabelHandler) SuggestLabelInfo(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	idStr := vars["id"]
 
@@ -167,7 +171,7 @@ func (h *LabelHandler) SuggestLabelCountry(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	suggestion, err := h.service.SuggestCountryForLabel(r.Context(), id)
+	suggestion, err := h.service.SuggestLabelInfo(r.Context(), id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

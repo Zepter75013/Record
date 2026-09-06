@@ -28,7 +28,7 @@ func NewLabelService(repo repository.LabelRepository, countryRepo countriesRepo.
 	return &LabelService{repo: repo, countryRepo: countryRepo, discogsToken: discogsToken, deeplAPIKey: deeplAPIKey}
 }
 
-func (s *LabelService) CreateLabel(ctx context.Context, name, description string, countryID *int) (*labels.Label, error) {
+func (s *LabelService) CreateLabel(ctx context.Context, name, description string, countryID *int, foundingYear *int, website *string) (*labels.Label, error) {
 	if name == "" {
 		return nil, errors.New("le nom du label est requis")
 	}
@@ -43,9 +43,11 @@ func (s *LabelService) CreateLabel(ctx context.Context, name, description string
 	}
 
 	label := &labels.Label{
-		Name:        name,
-		Description: description,
-		CountryID:   countryID,
+		Name:         name,
+		Description:  description,
+		CountryID:    countryID,
+		FoundingYear: foundingYear,
+		Website:      website,
 	}
 
 	err = s.repo.Create(ctx, label)
@@ -60,7 +62,7 @@ func (s *LabelService) GetAllLabels(ctx context.Context) ([]labels.Label, error)
 	return s.repo.FindAll(ctx)
 }
 
-func (s *LabelService) UpdateLabel(ctx context.Context, id int, name, description string, countryID *int) (*labels.Label, error) {
+func (s *LabelService) UpdateLabel(ctx context.Context, id int, name, description string, countryID *int, foundingYear *int, website *string) (*labels.Label, error) {
 	existingLabel, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -84,6 +86,8 @@ func (s *LabelService) UpdateLabel(ctx context.Context, id int, name, descriptio
 	existingLabel.Name = name
 	existingLabel.Description = description
 	existingLabel.CountryID = countryID
+	existingLabel.FoundingYear = foundingYear
+	existingLabel.Website = website
 
 	err = s.repo.Update(ctx, existingLabel)
 	if err != nil {
@@ -204,23 +208,26 @@ func (s *LabelService) SuggestDescriptionForLabel(ctx context.Context, id int) (
 	return description, nil
 }
 
-// CountrySuggestion est la proposition de pays renvoyée à l'utilisateur pour
-// validation — country_id est toujours renseigné (le pays est créé dans
-// records_countries s'il n'y existait pas encore), mais rien n'est touché
+// LabelInfoSuggestion est la proposition (pays, année de fondation, site
+// web) renvoyée à l'utilisateur pour validation — le pays est créé dans
+// records_countries s'il n'y existait pas encore, mais rien n'est touché
 // sur le label lui-même : c'est à l'utilisateur de valider en enregistrant
-// le formulaire (bouton "Mettre à jour").
-type CountrySuggestion struct {
-	CountryID int    `json:"country_id"`
-	Name      string `json:"name"`
-	Code      string `json:"code"`
+// le formulaire (bouton "Mettre à jour"). Chaque champ peut manquer
+// indépendamment des autres (MusicBrainz n'a pas toujours tout).
+type LabelInfoSuggestion struct {
+	CountryID    *int    `json:"country_id,omitempty"`
+	CountryName  string  `json:"country_name,omitempty"`
+	CountryCode  string  `json:"country_code,omitempty"`
+	FoundingYear *int    `json:"founding_year,omitempty"`
+	Website      *string `json:"website,omitempty"`
 }
 
-// SuggestCountryForLabel propose un pays pour un label à partir de
-// MusicBrainz (Discogs, lui, ne structure pas de champ pays pour les
-// labels). Ne modifie jamais le label lui-même — seul le pays est créé
-// dans records_countries si besoin, comme une simple table de référence
-// partagée.
-func (s *LabelService) SuggestCountryForLabel(ctx context.Context, id int) (*CountrySuggestion, error) {
+// SuggestLabelInfo propose pays, année de fondation et site web pour un
+// label à partir de MusicBrainz (Discogs, lui, ne structure aucun de ces
+// champs pour les labels). Ne modifie jamais le label lui-même — seul le
+// pays est créé dans records_countries si besoin, comme une simple table
+// de référence partagée.
+func (s *LabelService) SuggestLabelInfo(ctx context.Context, id int) (*LabelInfoSuggestion, error) {
 	label, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, errors.New("label non trouvé")
@@ -229,25 +236,40 @@ func (s *LabelService) SuggestCountryForLabel(ctx context.Context, id int) (*Cou
 		return nil, errors.New("label non trouvé")
 	}
 
-	code, name, err := musicbrainz.SearchCountry("label", label.Name)
+	info, err := musicbrainz.SearchLabelInfo(label.Name)
 	if err != nil {
 		return nil, err
 	}
-	if alias, ok := musicbrainz.CountryAliases[code]; ok {
-		code = alias
+
+	suggestion := &LabelInfoSuggestion{
+		FoundingYear: info.FoundingYear,
+		Website:      info.Website,
 	}
 
-	existing, err := s.countryRepo.FindByCode(ctx, code)
-	if err != nil {
-		return nil, err
-	}
-	if existing != nil {
-		return &CountrySuggestion{CountryID: existing.ID, Name: existing.Name, Code: existing.Code}, nil
+	if info.CountryCode != "" {
+		code := info.CountryCode
+		if alias, ok := musicbrainz.CountryAliases[code]; ok {
+			code = alias
+		}
+
+		existing, err := s.countryRepo.FindByCode(ctx, code)
+		if err != nil {
+			return nil, err
+		}
+		if existing != nil {
+			suggestion.CountryID = &existing.ID
+			suggestion.CountryName = existing.Name
+			suggestion.CountryCode = existing.Code
+		} else {
+			newCountry := &countries.Country{Name: info.CountryName, Code: code}
+			if err := s.countryRepo.Create(ctx, newCountry); err != nil {
+				return nil, err
+			}
+			suggestion.CountryID = &newCountry.ID
+			suggestion.CountryName = newCountry.Name
+			suggestion.CountryCode = newCountry.Code
+		}
 	}
 
-	newCountry := &countries.Country{Name: name, Code: code}
-	if err := s.countryRepo.Create(ctx, newCountry); err != nil {
-		return nil, err
-	}
-	return &CountrySuggestion{CountryID: newCountry.ID, Name: newCountry.Name, Code: newCountry.Code}, nil
+	return suggestion, nil
 }

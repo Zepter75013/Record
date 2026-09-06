@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -101,8 +102,12 @@ type areaRef struct {
 }
 
 type searchResult struct {
-	Country string  `json:"country"`
-	Area    areaRef `json:"area"`
+	ID       string  `json:"id"`
+	Country  string  `json:"country"`
+	Area     areaRef `json:"area"`
+	LifeSpan struct {
+		Begin string `json:"begin"`
+	} `json:"life-span"`
 }
 
 type searchResponse struct {
@@ -167,39 +172,38 @@ func resolveCountryFromArea(areaID string) (code, name string, err error) {
 	return "", "", fmt.Errorf("pays inconnu sur MusicBrainz")
 }
 
-// SearchCountry recherche une entité MusicBrainz (artist ou label) par son
-// nom et renvoie le code pays ISO du meilleur résultat ainsi que son nom
-// lisible. entityType vaut "artist" ou "label". Certaines entités ne sont
-// rattachées qu'à une zone (ville) sans pays renseigné directement ; on
-// remonte alors vers le pays via resolveCountryFromArea.
-func SearchCountry(entityType, name string) (code, countryName string, err error) {
+// searchTop recherche une entité MusicBrainz (artist ou label) par son nom
+// et renvoie son meilleur résultat. entityType vaut "artist" ou "label".
+func searchTop(entityType, name string) (*searchResult, error) {
 	query := url.QueryEscape(fmt.Sprintf(`%s:"%s"`, entityType, name))
 	resp, err := Request(entityType + "/?query=" + query + "&fmt=json&limit=1")
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	var result searchResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", "", err
+		return nil, err
 	}
 
-	var top *searchResult
 	switch entityType {
 	case "label":
 		if len(result.Labels) > 0 {
-			top = &result.Labels[0]
+			return &result.Labels[0], nil
 		}
 	case "artist":
 		if len(result.Artists) > 0 {
-			top = &result.Artists[0]
+			return &result.Artists[0], nil
 		}
 	}
-	if top == nil {
-		return "", "", fmt.Errorf("aucun résultat trouvé sur MusicBrainz pour %q", name)
-	}
+	return nil, fmt.Errorf("aucun résultat trouvé sur MusicBrainz pour %q", name)
+}
 
+// countryFromResult déduit le pays d'un résultat de recherche MusicBrainz :
+// directement s'il porte un code pays, sinon en remontant depuis sa zone
+// (ville, quartier...) via resolveCountryFromArea.
+func countryFromResult(top *searchResult) (code, countryName string, err error) {
 	if top.Country != "" {
 		countryName := top.Area.Name
 		if countryName == "" || top.Area.Type != "Country" {
@@ -213,4 +217,94 @@ func SearchCountry(entityType, name string) (code, countryName string, err error
 	}
 
 	return "", "", fmt.Errorf("pays inconnu sur MusicBrainz")
+}
+
+// SearchCountry recherche une entité MusicBrainz (artist ou label) par son
+// nom et renvoie le code pays ISO du meilleur résultat ainsi que son nom
+// lisible. entityType vaut "artist" ou "label". Certaines entités ne sont
+// rattachées qu'à une zone (ville) sans pays renseigné directement ; on
+// remonte alors vers le pays via resolveCountryFromArea.
+func SearchCountry(entityType, name string) (code, countryName string, err error) {
+	top, err := searchTop(entityType, name)
+	if err != nil {
+		return "", "", err
+	}
+	return countryFromResult(top)
+}
+
+// LabelInfo regroupe les informations récupérées sur un label via
+// MusicBrainz — pays, année de fondation et site officiel. Chaque champ
+// peut manquer indépendamment des autres (une valeur absente n'est pas une
+// erreur : ce n'est pas rare que MusicBrainz n'ait que certaines de ces
+// informations pour un label donné).
+type LabelInfo struct {
+	CountryCode  string
+	CountryName  string
+	FoundingYear *int
+	Website      *string
+}
+
+// officialSite recherche le lien "site officiel" d'une entité MusicBrainz à
+// partir de son identifiant — contrairement au pays/à l'année de fondation,
+// ce n'est renvoyé que par la fiche détaillée (avec inc=url-rels), pas par
+// la recherche elle-même.
+func officialSite(mbid, entityType string) (string, error) {
+	resp, err := Request(entityType + "/" + mbid + "?inc=url-rels&fmt=json")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Relations []struct {
+			Type string `json:"type"`
+			URL  struct {
+				Resource string `json:"resource"`
+			} `json:"url"`
+		} `json:"relations"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+	for _, rel := range result.Relations {
+		if rel.Type == "official site" || rel.Type == "official homepage" {
+			return rel.URL.Resource, nil
+		}
+	}
+	return "", nil
+}
+
+// SearchLabelInfo recherche un label par son nom sur MusicBrainz et renvoie
+// tout ce qui a pu être trouvé (pays, année de fondation, site officiel) —
+// des informations que Discogs, lui, ne structure pas pour les labels.
+// Chaque champ de LabelInfo peut rester vide indépendamment des autres.
+// Ne renvoie une erreur que si le label lui-même est introuvable.
+func SearchLabelInfo(name string) (*LabelInfo, error) {
+	top, err := searchTop("label", name)
+	if err != nil {
+		return nil, err
+	}
+
+	info := &LabelInfo{}
+
+	if code, countryName, err := countryFromResult(top); err == nil {
+		info.CountryCode = code
+		info.CountryName = countryName
+	}
+
+	// L'année de fondation est parfois une date complète ("1980-05-12"),
+	// on ne garde que les 4 premiers chiffres.
+	if len(top.LifeSpan.Begin) >= 4 {
+		if year, err := strconv.Atoi(top.LifeSpan.Begin[:4]); err == nil {
+			info.FoundingYear = &year
+		}
+	}
+
+	if top.ID != "" {
+		if site, err := officialSite(top.ID, "label"); err == nil && site != "" {
+			info.Website = &site
+		}
+	}
+
+	return info, nil
 }

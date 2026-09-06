@@ -1,6 +1,7 @@
 <script setup>
 import LabelsModal from '@/components/LabelsModal.vue';
 import LabelsBulkDescriptionModal from '@/components/LabelsBulkDescriptionModal.vue';
+import LabelsBulkInfoModal from '@/components/LabelsBulkInfoModal.vue';
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useApi } from '@/composables/useApi';
 
@@ -14,6 +15,7 @@ const isModalOpen = ref(false);
 const currentLabel = ref(null);
 const apiError = ref(null);
 const isBulkModalOpen = ref(false);
+const isBulkInfoModalOpen = ref(false);
 const isMobileView = ref(window.innerWidth < 768);
 
 const updateMobileView = () => {
@@ -114,6 +116,13 @@ const handleBulkLabelUpdated = ({ id, description }) => {
   }
 };
 
+const handleBulkInfoUpdated = ({ id, country_id, countryname, founding_year, website }) => {
+  const existingIndex = labels.value.findIndex((l) => l.id === id);
+  if (existingIndex !== -1) {
+    labels.value[existingIndex] = { ...labels.value[existingIndex], country_id, countryname, founding_year, website };
+  }
+};
+
 onMounted(() => {
   fetchLabels();
   window.addEventListener('resize', updateMobileView);
@@ -140,6 +149,10 @@ onBeforeUnmount(() => {
             <button @click="isBulkModalOpen = true" class="ghost-btn bulk-update-button">
               <span class="icon">🔄</span>
               Mettre à jour les descriptions
+            </button>
+            <button @click="isBulkInfoModalOpen = true" class="ghost-btn bulk-update-button">
+              <span class="icon">🔄</span>
+              Mettre à jour pays / année / site web
             </button>
             <button @click="openModal()" class="primary-btn add-button">
               <span class="icon">➕</span>
@@ -275,6 +288,13 @@ onBeforeUnmount(() => {
       :labels="sortedLabels"
       @close="isBulkModalOpen = false"
       @label-updated="handleBulkLabelUpdated"
+    />
+
+    <LabelsBulkInfoModal
+      :is-open="isBulkInfoModalOpen"
+      :labels="sortedLabels"
+      @close="isBulkInfoModalOpen = false"
+      @label-updated="handleBulkInfoUpdated"
     />
 
     <Teleport to="body">
