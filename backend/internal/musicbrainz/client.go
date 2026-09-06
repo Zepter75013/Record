@@ -71,6 +71,7 @@ func Request(path string) (*http.Response, error) {
 	const maxAttempts = 3
 	backoff := 2 * time.Second
 
+	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		req, err := http.NewRequest("GET", "https://musicbrainz.org/ws/2/"+path, nil)
 		if err != nil {
@@ -83,9 +84,19 @@ func Request(path string) (*http.Response, error) {
 		if err != nil {
 			var netErr net.Error
 			if errors.As(err, &netErr) && netErr.Timeout() {
-				return nil, fmt.Errorf("MusicBrainz a mis trop de temps à répondre, réessayez")
+				lastErr = fmt.Errorf("MusicBrainz a mis trop de temps à répondre, réessayez")
+			} else {
+				lastErr = fmt.Errorf("impossible de joindre MusicBrainz : %w", err)
 			}
-			return nil, fmt.Errorf("impossible de joindre MusicBrainz : %w", err)
+			// Une lenteur ou une coupure ponctuelle vaut la peine d'être
+			// retentée, comme un 429/503 — MusicBrainz répond parfois très
+			// lentement sous charge sans pour autant renvoyer d'erreur HTTP.
+			if attempt < maxAttempts {
+				time.Sleep(backoff)
+				backoff *= 2
+				continue
+			}
+			return nil, lastErr
 		}
 
 		isRateLimited := resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable
