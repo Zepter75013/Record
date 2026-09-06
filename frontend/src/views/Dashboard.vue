@@ -1079,8 +1079,11 @@ watch(() => route.path, async (newPath) => {
     display: grid;
     place-items: center;
     position: fixed;
-    top: 14px;
-    left: 14px;
+    /* iPhone (PWA plein écran) : décale sous l'encoche/Dynamic Island.
+       env() vaut 0 sur les navigateurs sans encoche, donc sans effet
+       ailleurs. */
+    top: max(14px, calc(env(safe-area-inset-top) + 6px));
+    left: max(14px, env(safe-area-inset-left));
     z-index: 210;
     width: 42px;
     height: 42px;
@@ -1134,6 +1137,12 @@ watch(() => route.path, async (newPath) => {
     transform: translateX(-100%);
     box-shadow: 12px 0 40px rgba(0, 0, 0, 0.35);
     transition: transform 220ms ease;
+    /* iPhone (PWA plein écran) : le tiroir touche les bords réels de
+       l'écran (top/left/height=100dvh), donc son contenu doit être
+       repoussé sous l'encoche et au-dessus de la barre d'accueil. */
+    padding-top: calc(1.2rem + env(safe-area-inset-top));
+    padding-bottom: calc(1.2rem + env(safe-area-inset-bottom));
+    padding-left: calc(1rem + env(safe-area-inset-left));
   }
 
   .sidebar.is-mobile.is-mobile-open {

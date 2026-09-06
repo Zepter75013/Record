@@ -28,7 +28,10 @@ const { updateAvailable, reloadApp } = useVersionCheck()
   align-items: center;
   justify-content: center;
   gap: 16px;
-  padding: 12px 20px;
+  /* iPhone (PWA plein écran) : évite que la bannière ne s'affiche sous
+     l'encoche/Dynamic Island — env() vaut 0 sur les navigateurs sans
+     encoche, donc sans effet ailleurs. */
+  padding: max(12px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) 12px max(20px, env(safe-area-inset-left));
   background: linear-gradient(135deg, var(--accent), var(--accent-blue));
   color: white;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
