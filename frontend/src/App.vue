@@ -214,6 +214,10 @@ button:disabled {
   background: rgba(var(--tint-rgb), 0.04);
   color: var(--text);
   outline: none;
+  /* iOS Safari zoome automatiquement l'écran au focus d'un champ dont la
+     police fait moins de 16px — sans taille explicite ici, le champ
+     hérite du minuscule défaut natif du navigateur. */
+  font-size: 16px;
 }
 
 /* Le rendu natif d'un <select> (surtout sous Safari) ne respecte pas

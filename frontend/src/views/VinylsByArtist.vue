@@ -1453,6 +1453,11 @@ onMounted(() => {
   padding: 12px;
   max-height: 80vh;
   overflow-y: auto;
+  /* Sans ça, cet élément de grille refuse de rétrécir sous la largeur
+     minimale de son contenu (titres d'albums non tronqués...), forçant
+     toute la colonne "1fr" de .detail-layout à déborder de l'écran sur
+     mobile. */
+  min-width: 0;
 }
 
 .albums-sidebar-header {
@@ -1554,6 +1559,10 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* Même raison que .albums-sidebar : sans min-width: 0, cet élément
+     flex refuse de rétrécir sous la largeur de son texte, donc
+     l'ellipse ci-dessus ne s'active jamais. */
+  min-width: 0;
 }
 
 .vinyl-detail-panel {
@@ -1562,12 +1571,26 @@ onMounted(() => {
   border: 1px solid var(--line-soft);
   border-radius: 12px;
   padding: 20px;
+  /* Même raison que .albums-sidebar juste au-dessus : sans ça, cet
+     élément de grille (qui partage la même colonne "1fr" que la
+     sidebar albums sur mobile) refuse de rétrécir sous la largeur de
+     son contenu, ce qui fait déborder toute la colonne. */
+  min-width: 0;
 }
 
 .detail-content {
   display: grid;
   grid-template-columns: 1fr 220px;
   gap: 24px;
+}
+
+/* .detail-fields et .detail-side (ci-dessous) sont les deux colonnes de
+   .detail-content : même bug que .albums-sidebar/.vinyl-detail-panel
+   ci-dessus quand .detail-content repasse à une seule colonne "1fr" sur
+   mobile — sans min-width: 0, elles refusent de rétrécir sous la largeur
+   de leur contenu et font déborder toute la colonne. */
+.detail-fields {
+  min-width: 0;
 }
 
 .field-row {
@@ -1610,6 +1633,13 @@ onMounted(() => {
   grid-template-columns: 1fr 1fr;
   gap: 16px;
   margin-top: 8px;
+}
+
+/* Grid item de .tracklist-columns : sans ça, refuse de rétrécir sous la
+   largeur de son contenu (liste de pistes) et fait déborder toute la
+   colonne sur mobile — même bug que .albums-sidebar plus haut. */
+.tracklist-face {
+  min-width: 0;
 }
 
 .tracklist-face h4 {
@@ -1658,6 +1688,7 @@ onMounted(() => {
 
 .track-title {
   flex: 1;
+  min-width: 0;
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1690,6 +1721,11 @@ onMounted(() => {
 
 .disc-groups {
   display: grid;
+  /* Sans piste explicite, la colonne implicite se dimensionne sur le
+     contenu de .disc-group-block (listes de pistes...) et pousse toute
+     la mise en page en dehors de l'écran sur mobile — minmax(0, 1fr) la
+     force à respecter la largeur réellement disponible. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   margin-top: 8px;
 }
@@ -1712,6 +1748,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
 }
 
 .detail-cover {
@@ -1925,7 +1962,7 @@ onMounted(() => {
   }
 
   .tracklist-columns {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .polaroid-card {
