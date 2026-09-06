@@ -232,7 +232,7 @@ onBeforeUnmount(() => {
               </div>
               <div class="card-description">
                 <span class="card-label">Description:</span>
-                <span class="card-value">{{ label.description || '-' }}</span>
+                <span class="card-value clamp-text">{{ label.description || '-' }}</span>
               </div>
             </div>
           </div>
@@ -377,9 +377,22 @@ onBeforeUnmount(() => {
   .card-item.selected-row { border-left-color: var(--accent-soft); background: rgba(59, 130, 246, 0.08); }
   .card-main { padding: 14px; cursor: pointer; }
   .card-content { display: flex; flex-direction: column; gap: 10px; }
-  .card-id, .card-name, .card-description { display: flex; gap: 8px; }
+  .card-id, .card-name { display: flex; gap: 8px; }
   .card-label { font-weight: 700; color: var(--text-soft); min-width: 90px; }
   .card-value { color: var(--text); }
+  /* Contrairement aux champs courts ci-dessus (ID/Nom), la description est
+     un texte long : sur la même ligne que son label, elle déborde et se
+     chevauche avec lui. Empilée, avec troncature à 5 lignes — le texte
+     complet reste consultable via double-clic sur la carte (ouvre la
+     fiche de modification). */
+  .card-description { display: flex; flex-direction: column; gap: 4px; }
+  .card-description .clamp-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 5;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.4;
+  }
   .card-actions-bottom { display: flex; gap: 8px; padding: 10px 14px; background: rgba(var(--tint-rgb), 0.04); border-top: 1px solid var(--line-soft); }
   .action-button-mobile { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 16px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; min-height: 44px; }
   .action-button-mobile.edit-button { background: var(--accent); color: white; }
