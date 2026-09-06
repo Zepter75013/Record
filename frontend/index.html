@@ -6,8 +6,20 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <meta charset="UTF-8">
     <link rel="icon" href="/favicon.ico">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vite App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>MediaVault</title>
+
+    <!-- PWA : permet d'ajouter l'app à l'écran d'accueil (iPhone/Android) en
+         plein écran, sans passer par l'App Store. -->
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#0f1420">
+
+    <!-- iOS ne lit pas le manifest pour l'icône/le mode plein écran : il lui
+         faut ces balises spécifiques (Safari > Partager > Sur l'écran d'accueil). -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MediaVault">
   </head>
   <body>
     <div id="app"></div>
