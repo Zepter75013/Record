@@ -24,6 +24,19 @@ var CountryAliases = map[string]string{
 	"GB": "UK",
 }
 
+// ErrNotFound signale qu'aucune entité ne correspond à la recherche — un cas
+// normal (l'artiste/le label n'est simplement pas dans MusicBrainz), pas une
+// panne. errors.Is permet aux appelants de le distinguer d'une vraie erreur
+// réseau/débit limité pour l'afficher comme "aucune donnée" plutôt qu'un
+// échec.
+var ErrNotFound = errors.New("aucun résultat trouvé sur MusicBrainz")
+
+// interCallDelay espace les appels MusicBrainz enchaînés au sein d'une même
+// résolution (recherche -> remontée de zone -> site officiel), pour rester
+// sous la limite de débit (~1 req/s en usage anonyme) sans attendre de se
+// faire limiter puis retenter.
+const interCallDelay = 400 * time.Millisecond
+
 // Table minimale ISO 3166-1 alpha-2 -> nom anglais. Sert uniquement de repli
 // quand MusicBrainz ne donne pas de nom de pays lisible directement — ce nom
 // ne sert qu'à créer l'entrée dans records_countries si elle n'existe pas
@@ -168,6 +181,7 @@ func resolveCountryFromArea(areaID string) (code, name string, err error) {
 			break
 		}
 		currentID = parentID
+		time.Sleep(interCallDelay)
 	}
 	return "", "", fmt.Errorf("pays inconnu sur MusicBrainz")
 }
@@ -197,7 +211,7 @@ func searchTop(entityType, name string) (*searchResult, error) {
 			return &result.Artists[0], nil
 		}
 	}
-	return nil, fmt.Errorf("aucun résultat trouvé sur MusicBrainz pour %q", name)
+	return nil, fmt.Errorf("%w pour %q", ErrNotFound, name)
 }
 
 // countryFromResult déduit le pays d'un résultat de recherche MusicBrainz :
@@ -277,11 +291,16 @@ func officialSite(mbid, entityType string) (string, error) {
 // SearchLabelInfo recherche un label par son nom sur MusicBrainz et renvoie
 // tout ce qui a pu être trouvé (pays, année de fondation, site officiel) —
 // des informations que Discogs, lui, ne structure pas pour les labels.
-// Chaque champ de LabelInfo peut rester vide indépendamment des autres.
-// Ne renvoie une erreur que si le label lui-même est introuvable.
+// Chaque champ de LabelInfo peut rester vide indépendamment des autres. Si
+// le label lui-même est introuvable sur MusicBrainz, ce n'est pas traité
+// comme une erreur : un LabelInfo vide est renvoyé (cas normal, pas une
+// panne — voir ErrNotFound).
 func SearchLabelInfo(name string) (*LabelInfo, error) {
 	top, err := searchTop("label", name)
 	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return &LabelInfo{}, nil
+		}
 		return nil, err
 	}
 
@@ -301,6 +320,7 @@ func SearchLabelInfo(name string) (*LabelInfo, error) {
 	}
 
 	if top.ID != "" {
+		time.Sleep(interCallDelay)
 		if site, err := officialSite(top.ID, "label"); err == nil && site != "" {
 			info.Website = &site
 		}
