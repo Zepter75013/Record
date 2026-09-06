@@ -24,7 +24,7 @@ func NewLabelService(repo repository.LabelRepository, discogsToken, deeplAPIKey 
 	return &LabelService{repo: repo, discogsToken: discogsToken, deeplAPIKey: deeplAPIKey}
 }
 
-func (s *LabelService) CreateLabel(ctx context.Context, name, description string) (*labels.Label, error) {
+func (s *LabelService) CreateLabel(ctx context.Context, name, description string, countryID *int) (*labels.Label, error) {
 	if name == "" {
 		return nil, errors.New("le nom du label est requis")
 	}
@@ -41,6 +41,7 @@ func (s *LabelService) CreateLabel(ctx context.Context, name, description string
 	label := &labels.Label{
 		Name:        name,
 		Description: description,
+		CountryID:   countryID,
 	}
 
 	err = s.repo.Create(ctx, label)
@@ -48,14 +49,14 @@ func (s *LabelService) CreateLabel(ctx context.Context, name, description string
 		return nil, err
 	}
 
-	return label, nil
+	return s.repo.FindByID(ctx, label.ID)
 }
 
 func (s *LabelService) GetAllLabels(ctx context.Context) ([]labels.Label, error) {
 	return s.repo.FindAll(ctx)
 }
 
-func (s *LabelService) UpdateLabel(ctx context.Context, id int, name, description string) (*labels.Label, error) {
+func (s *LabelService) UpdateLabel(ctx context.Context, id int, name, description string, countryID *int) (*labels.Label, error) {
 	existingLabel, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -78,13 +79,14 @@ func (s *LabelService) UpdateLabel(ctx context.Context, id int, name, descriptio
 
 	existingLabel.Name = name
 	existingLabel.Description = description
+	existingLabel.CountryID = countryID
 
 	err = s.repo.Update(ctx, existingLabel)
 	if err != nil {
 		return nil, err
 	}
 
-	return existingLabel, nil
+	return s.repo.FindByID(ctx, id)
 }
 
 func (s *LabelService) DeleteLabel(ctx context.Context, id int) error {

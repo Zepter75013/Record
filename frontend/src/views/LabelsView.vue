@@ -172,6 +172,12 @@ onBeforeUnmount(() => {
                   <span class="sort-icon" v-html="getSortIcon('name')"></span>
                 </div>
               </th>
+              <th class="country-column sortable" @click="sortBy('countryname')">
+                <div class="sortable-content">
+                  <span class="header-text">PAYS</span>
+                  <span class="sort-icon" v-html="getSortIcon('countryname')"></span>
+                </div>
+              </th>
               <th class="description-column sortable" @click="sortBy('description')">
                 <div class="sortable-content">
                   <span class="header-text">DESCRIPTION</span>
@@ -195,6 +201,7 @@ onBeforeUnmount(() => {
             >
               <td class="id-column">{{ label.id }}</td>
               <td class="name-column">{{ label.name || '-' }}</td>
+              <td class="country-column">{{ label.countryname || '-' }}</td>
               <td class="description-column" :title="label.description">
                 <span class="clamp-text">{{ label.description || '-' }}</span>
               </td>
@@ -229,6 +236,10 @@ onBeforeUnmount(() => {
               <div class="card-name">
                 <span class="card-label">Nom:</span>
                 <span class="card-value">{{ label.name || '-' }}</span>
+              </div>
+              <div class="card-country">
+                <span class="card-label">Pays:</span>
+                <span class="card-value">{{ label.countryname || '-' }}</span>
               </div>
               <div class="card-description">
                 <span class="card-label">Description:</span>
@@ -345,10 +356,11 @@ onBeforeUnmount(() => {
 .data-table tbody tr:hover { background: rgba(var(--tint-rgb), 0.06); }
 .data-table tbody tr.selected-row { background: rgba(59, 130, 246, 0.12) !important; border-left: 4px solid var(--accent) !important; }
 .data-table td { padding: 6px 15px; border-bottom: 1px solid var(--line-soft); text-align: left; font-size: 0.85em; height: 40px; color: var(--text); }
-.data-table .id-column { width: 10%; text-align: center; font-weight: 600; color: var(--text-soft); }
-.data-table .name-column { width: 30%; }
+.data-table .id-column { width: 8%; text-align: center; font-weight: 600; color: var(--text-soft); }
+.data-table .name-column { width: 22%; }
+.data-table .country-column { width: 15%; }
 .data-table .description-column {
-  width: 45%;
+  width: 40%;
   vertical-align: top;
   padding-top: 10px;
   padding-bottom: 10px;
@@ -377,7 +389,7 @@ onBeforeUnmount(() => {
   .card-item.selected-row { border-left-color: var(--accent-soft); background: rgba(59, 130, 246, 0.08); }
   .card-main { padding: 14px; cursor: pointer; }
   .card-content { display: flex; flex-direction: column; gap: 10px; }
-  .card-id, .card-name { display: flex; gap: 8px; }
+  .card-id, .card-name, .card-country { display: flex; gap: 8px; }
   .card-label { font-weight: 700; color: var(--text-soft); min-width: 90px; }
   .card-value { color: var(--text); }
   /* Contrairement aux champs courts ci-dessus (ID/Nom), la description est

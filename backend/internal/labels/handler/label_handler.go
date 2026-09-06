@@ -22,11 +22,13 @@ func NewLabelHandler(service *labelsService.LabelService) *LabelHandler {
 type CreateLabelRequest struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	CountryID   *int   `json:"country_id"`
 }
 
 type UpdateLabelRequest struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	CountryID   *int   `json:"country_id"`
 }
 
 func (h *LabelHandler) CreateLabel(w http.ResponseWriter, r *http.Request) {
@@ -36,7 +38,7 @@ func (h *LabelHandler) CreateLabel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	label, err := h.service.CreateLabel(r.Context(), req.Name, req.Description)
+	label, err := h.service.CreateLabel(r.Context(), req.Name, req.Description, req.CountryID)
 	if err != nil {
 		if err.Error() == "un label avec ce nom existe déjà" {
 			http.Error(w, err.Error(), http.StatusConflict)
@@ -78,7 +80,7 @@ func (h *LabelHandler) UpdateLabel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	label, err := h.service.UpdateLabel(r.Context(), id, req.Name, req.Description)
+	label, err := h.service.UpdateLabel(r.Context(), id, req.Name, req.Description, req.CountryID)
 	if err != nil {
 		if err.Error() == "un autre label avec ce nom existe déjà" {
 			http.Error(w, err.Error(), http.StatusConflict)

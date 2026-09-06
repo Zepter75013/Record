@@ -16,10 +16,10 @@ func NewMySQLLabelRepository(db *sql.DB) *MySQLLabelRepository {
 }
 
 func (r *MySQLLabelRepository) Create(ctx context.Context, label *labels.Label) error {
-	query := `INSERT INTO records_labels (name, description, created_at, updated_at) 
-              VALUES (?, ?, NOW(), NOW())`
+	query := `INSERT INTO records_labels (name, description, country_id, created_at, updated_at)
+              VALUES (?, ?, ?, NOW(), NOW())`
 
-	result, err := r.db.ExecContext(ctx, query, label.Name, label.Description)
+	result, err := r.db.ExecContext(ctx, query, label.Name, label.Description, label.CountryID)
 	if err != nil {
 		return err
 	}
@@ -34,7 +34,11 @@ func (r *MySQLLabelRepository) Create(ctx context.Context, label *labels.Label) 
 }
 
 func (r *MySQLLabelRepository) FindAll(ctx context.Context) ([]labels.Label, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM records_labels ORDER BY name`
+	query := `
+		SELECT l.id, l.name, l.description, l.country_id, c.name, l.created_at, l.updated_at
+		FROM records_labels l
+		LEFT JOIN records_countries c ON l.country_id = c.id
+		ORDER BY l.name`
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -45,7 +49,7 @@ func (r *MySQLLabelRepository) FindAll(ctx context.Context) ([]labels.Label, err
 	var labelList []labels.Label
 	for rows.Next() {
 		var l labels.Label
-		err := rows.Scan(&l.ID, &l.Name, &l.Description, &l.CreatedAt, &l.UpdatedAt)
+		err := rows.Scan(&l.ID, &l.Name, &l.Description, &l.CountryID, &l.CountryName, &l.CreatedAt, &l.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -56,11 +60,15 @@ func (r *MySQLLabelRepository) FindAll(ctx context.Context) ([]labels.Label, err
 }
 
 func (r *MySQLLabelRepository) FindByID(ctx context.Context, id int) (*labels.Label, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM records_labels WHERE id = ?`
+	query := `
+		SELECT l.id, l.name, l.description, l.country_id, c.name, l.created_at, l.updated_at
+		FROM records_labels l
+		LEFT JOIN records_countries c ON l.country_id = c.id
+		WHERE l.id = ?`
 
 	row := r.db.QueryRowContext(ctx, query, id)
 	var l labels.Label
-	err := row.Scan(&l.ID, &l.Name, &l.Description, &l.CreatedAt, &l.UpdatedAt)
+	err := row.Scan(&l.ID, &l.Name, &l.Description, &l.CountryID, &l.CountryName, &l.CreatedAt, &l.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -69,9 +77,9 @@ func (r *MySQLLabelRepository) FindByID(ctx context.Context, id int) (*labels.La
 }
 
 func (r *MySQLLabelRepository) Update(ctx context.Context, label *labels.Label) error {
-	query := `UPDATE records_labels SET name = ?, description = ?, updated_at = NOW() WHERE id = ?`
+	query := `UPDATE records_labels SET name = ?, description = ?, country_id = ?, updated_at = NOW() WHERE id = ?`
 
-	_, err := r.db.ExecContext(ctx, query, label.Name, label.Description, label.ID)
+	_, err := r.db.ExecContext(ctx, query, label.Name, label.Description, label.CountryID, label.ID)
 	return err
 }
 
