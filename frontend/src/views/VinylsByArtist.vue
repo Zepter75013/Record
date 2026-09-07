@@ -1467,11 +1467,16 @@ onMounted(() => {
   margin-top: 20px;
 }
 
+/* La sidebar albums passe en bandeau pleine largeur au-dessus de la fiche
+   (plutôt qu'une colonne étroite à gauche) : une fois l'album sélectionné
+   elle se réduit à une seule ligne (titre + "Changer"), rester sur une
+   colonne fixe de ~260px la rendait exigüe (titre tronqué) pour un gain
+   de place minime, alors que la fiche elle-même profite de toute la
+   largeur en dessous. */
 .detail-layout {
-  display: grid;
-  grid-template-columns: 260px 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 20px;
-  align-items: start;
 }
 
 .albums-sidebar {
@@ -1482,10 +1487,9 @@ onMounted(() => {
   padding: 12px;
   max-height: 80vh;
   overflow-y: auto;
-  /* Sans ça, cet élément de grille refuse de rétrécir sous la largeur
-     minimale de son contenu (titres d'albums non tronqués...), forçant
-     toute la colonne "1fr" de .detail-layout à déborder de l'écran sur
-     mobile. */
+  /* Sans ça, cet élément flex refuse de rétrécir sous la largeur minimale
+     de son contenu (titres d'albums non tronqués...), forçant .detail-
+     layout à déborder de l'écran sur mobile. */
   min-width: 0;
 }
 
@@ -2037,10 +2041,6 @@ onMounted(() => {
     grid-template-columns: 300px 1fr;
   }
 
-  .detail-layout {
-    grid-template-columns: 220px 1fr;
-  }
-
   .polaroid-card {
     width: 100px;
   }
@@ -2083,10 +2083,6 @@ onMounted(() => {
   /* Sidebar collapsed = disparaît */
   .artists-sidebar.collapsed {
     display: none !important;
-  }
-
-  .detail-layout {
-    grid-template-columns: 1fr;
   }
 
   .detail-side {
