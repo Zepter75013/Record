@@ -439,6 +439,11 @@ function getImageUrl(path, cacheBuster = null) {
 
 <style scoped>
 .tracklist-modal-card {
+  /* Plus large que le .modal-card partagé (680px, App.vue) : avec deux
+     colonnes Face A/B côte à côte, chacune n'a plus qu'environ 320px —
+     trop étroit pour des titres plus longs ("Blasphemous Rumours", "101
+     (Documentary Film)"...), qui passaient sur 2-3 lignes. */
+  width: min(900px, 95vw);
   animation: modal-pop-in 180ms ease;
   transform-origin: center;
 }
@@ -525,7 +530,9 @@ function getImageUrl(path, cacheBuster = null) {
 
 .tracklist-item {
   display: grid;
-  grid-template-columns: 2.5rem 1fr auto auto;
+  /* 2.5rem -> 3.5rem : trop étroit pour les repères de coffrets multi-
+     disques ("DVD2-5", "CD2-10"...), qui repassaient sur 2 lignes. */
+  grid-template-columns: 3.5rem 1fr auto auto;
   align-items: center;
   gap: 0.75rem;
   padding: 0.55rem 0.7rem;
