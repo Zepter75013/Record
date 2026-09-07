@@ -1679,6 +1679,15 @@ onMounted(() => {
   grid-template-columns: 1fr;
 }
 
+/* Sans ça, un champ dont la valeur est un seul "mot" insécable (le
+   code-barres, une longue suite de chiffres sans espace) refuse de
+   rétrécir sous cette largeur et pousse toute la colonne de champs à
+   déborder sous la pochette — visible surtout en portrait sur iPad, où la
+   nav + la sidebar albums laissent très peu de place à cette colonne. */
+.field {
+  min-width: 0;
+}
+
 .field label {
   display: block;
   font-size: 0.75em;
@@ -1695,6 +1704,7 @@ onMounted(() => {
   padding: 8px 12px;
   color: var(--text);
   font-size: 0.95em;
+  overflow-wrap: break-word;
   min-height: 20px;
 }
 
