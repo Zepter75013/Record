@@ -1653,19 +1653,25 @@ onMounted(() => {
   min-width: 0;
 }
 
+/* flex-wrap plutôt que CSS Grid à colonnes fixes : la largeur réellement
+   disponible ici ne dépend pas que de la largeur d'écran (ce qu'une
+   @media (max-width) peut voir), mais aussi de la barre latérale de
+   l'appli (redimensionnable en JS, ~280px par défaut) et de la sidebar
+   albums à gauche — sur iPad en portrait, sidebar dépliée, il ne restait
+   plus assez de place pour les deux colonnes at leur taille prévue, et le
+   code-barres (un seul "mot" insécable) débordait sous la pochette malgré
+   min-width: 0. Avec flex-wrap, la pochette (et ses actions) repasse
+   simplement à la ligne dès que la largeur réelle manque, quelle qu'en
+   soit la cause — plus robuste qu'un seuil basé sur la largeur d'écran. */
 .detail-content {
-  display: grid;
-  grid-template-columns: 1fr 220px;
+  display: flex;
+  flex-wrap: wrap;
   gap: 24px;
 }
 
-/* .detail-fields et .detail-side (ci-dessous) sont les deux colonnes de
-   .detail-content : même bug que .albums-sidebar/.vinyl-detail-panel
-   ci-dessus quand .detail-content repasse à une seule colonne "1fr" sur
-   mobile — sans min-width: 0, elles refusent de rétrécir sous la largeur
-   de leur contenu et font déborder toute la colonne. */
 .detail-fields {
-  min-width: 0;
+  flex: 1 1 260px;
+  min-width: 220px;
 }
 
 .field-row {
@@ -1832,8 +1838,9 @@ onMounted(() => {
 .detail-side {
   display: flex;
   flex-direction: column;
+  flex: 0 1 220px;
   gap: 12px;
-  min-width: 0;
+  min-width: 160px;
 }
 
 .detail-cover {
@@ -1994,10 +2001,6 @@ onMounted(() => {
     grid-template-columns: 220px 1fr;
   }
 
-  .detail-content {
-    grid-template-columns: 1fr 180px;
-  }
-
   .polaroid-card {
     width: 100px;
   }
@@ -2046,8 +2049,9 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
-  .detail-content {
-    grid-template-columns: 1fr;
+  .detail-side {
+    flex-basis: 100%;
+    min-width: 0;
   }
 
   .field-row {
