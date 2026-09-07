@@ -3,6 +3,7 @@
 import DiscsModal from '@/components/DiscsModal/DiscsModal.vue';
 import TracklistModal from '@/components/TracklistModal.vue';
 import CheckDiscModal from '@/components/CheckDiscModal.vue';
+import DiscsBulkDiscogsModal from '@/components/DiscsBulkDiscogsModal.vue';
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { useApi } from '@/composables/useApi';
 import { formatCurrency } from '@/utils/format';
@@ -16,6 +17,7 @@ const selectedRowId = ref(null);
 const isTracklistModalOpen = ref(false);
 const discForTracklist = ref(null);
 const isCheckDiscModalOpen = ref(false);
+const isBulkDiscogsModalOpen = ref(false);
 function openTracklistModal(disc) {
   discForTracklist.value = disc;
   isTracklistModalOpen.value = true;
@@ -28,6 +30,12 @@ function handleDiscUpdatedFromDiscogs(updated) {
   const idx = discs.value.findIndex((d) => d.id === updated.id);
   if (idx !== -1) discs.value.splice(idx, 1, updated);
   if (currentDisc.value?.id === updated.id) currentDisc.value = { ...updated };
+}
+function handleBulkDiscUpdated({ discId, hasTracks, discogsNotes }) {
+  const disc = discs.value.find((d) => d.id === discId);
+  if (!disc) return;
+  disc.has_tracks = hasTracks;
+  if (discogsNotes != null) disc.discogs_notes = discogsNotes;
 }
 const API_URL = '/discs';
 // ✅ ÉTATS FILTRES & RECHERCHE
@@ -1471,6 +1479,14 @@ aria-label="Vérifier si un disque existe déjà"
 <span class="icon" aria-hidden="true">🔎</span> Vérifier
 </button>
 <button
+@click="isBulkDiscogsModalOpen = true"
+class="filter-toggle-button"
+:disabled="isLoading || discs.length === 0"
+aria-label="Mettre à jour pistes et notes Discogs en masse"
+>
+<span class="icon" aria-hidden="true">🔄</span> Mise à jour Discogs
+</button>
+<button
 @click="openModal()"
 class="primary-btn add-button"
 :disabled="isLoading"
@@ -2425,6 +2441,13 @@ Aller
 @edit-existing-disc="handleEditExistingDisc"
 @tracks-updated="handleTracksUpdated"
 @disc-updated="handleDiscUpdatedFromDiscogs"
+/>
+<!-- ✅ MODALE MISE À JOUR DISCOGS EN MASSE -->
+<DiscsBulkDiscogsModal
+:is-open="isBulkDiscogsModalOpen"
+:discs="discs"
+@close="isBulkDiscogsModalOpen = false"
+@disc-updated="handleBulkDiscUpdated"
 />
 <!-- ✅ MODALE PISTES -->
 <TracklistModal

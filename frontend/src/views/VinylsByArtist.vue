@@ -758,7 +758,7 @@ onMounted(() => {
               <div v-if="selectedVinyl.discogs_notes" class="field-row single">
                 <div class="field full">
                   <label>Notes Discogs</label>
-                  <div class="field-value textarea">{{ selectedVinyl.discogs_notes }}</div>
+                  <div class="field-value textarea discogs-notes-value">{{ selectedVinyl.discogs_notes }}</div>
                 </div>
               </div>
             </div>
@@ -1579,6 +1579,13 @@ onMounted(() => {
 .field-value.textarea {
   min-height: 48px;
   white-space: pre-wrap;
+}
+
+/* Les notes Discogs sont souvent des paragraphes complets (historique de
+   pressage/édition), plus longs qu'un commentaire perso — plus de place
+   pour ne pas forcer un défilement immédiat. */
+.field-value.discogs-notes-value {
+  min-height: 100px;
 }
 
 .tracklist-columns {

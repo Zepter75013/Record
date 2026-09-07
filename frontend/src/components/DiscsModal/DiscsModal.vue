@@ -508,7 +508,7 @@
                       <div v-if="discData" class="form-group full-width">
                         <label for="discogs_notes">Notes Discogs</label>
                         <textarea id="discogs_notes" v-model="formData.discogs_notes"
-                          placeholder="Infos de pressage/édition récupérées depuis Discogs..." class="form-textarea" rows="2"
+                          placeholder="Infos de pressage/édition récupérées depuis Discogs..." class="form-textarea" rows="5"
                           :disabled="isSaving"></textarea>
                         <DiscogsTracklistRefresh
                           :disc="discData"
@@ -2467,6 +2467,10 @@ const handleKeyInput = (e) => {
   border: 2px solid var(--line);
   border-radius: 8px;
   font-size: 15px;
+  /* Sans ça, <textarea> retombe sur la police par défaut du navigateur
+     (souvent une police à chasse fixe) au lieu d'hériter celle de
+     l'appli comme <input>/<select> le font déjà. */
+  font-family: inherit;
   transition: all 0.2s;
   box-sizing: border-box;
   background: rgba(var(--tint-rgb), 0.04);
