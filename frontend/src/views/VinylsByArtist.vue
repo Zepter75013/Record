@@ -1700,11 +1700,17 @@ onMounted(() => {
 /* auto-fit plutôt qu'un nombre de colonnes fixe : le nombre de colonnes
    s'ajuste tout seul à la largeur réellement disponible (même piège que
    .detail-content ci-dessus si c'était figé à 3 colonnes). */
+/* max-width borne le nombre de colonnes (4 grand maximum) : sans ça,
+   auto-fit s'étire avec la largeur de l'écran et peut monter à 6+
+   colonnes sur un grand moniteur — avec 8 champs, la dernière ligne
+   (Prix/Quantité) se retrouvait alors avec plusieurs cases vides à droite
+   au lieu de remplir proprement 2 lignes de 4. */
 .field-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
   margin-bottom: 12px;
+  max-width: 640px;
 }
 
 .field-row {
