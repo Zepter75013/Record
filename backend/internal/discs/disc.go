@@ -27,6 +27,10 @@ type Disc struct {
 	ISRC          *string `json:"isrc,omitempty"` // Code ISRC pour identification
 
 	DiscogsReleaseID *int64 `json:"discogs_release_id,omitempty"`
+	// Notes de pressage/édition renvoyées par Discogs (ex: "Limited edition
+	// orange vinyl") — séparé de Notes (commentaire personnel de
+	// l'utilisateur) pour ne jamais l'écraser.
+	DiscogsNotes *string `json:"discogs_notes,omitempty"`
 
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	UpdatedAt time.Time `json:"updated_at,omitempty"`
@@ -59,8 +63,9 @@ type DiscWithDetails struct {
 	YoutubeURL    *string `json:"youtube_url,omitempty"`
 	ISRC          *string `json:"isrc,omitempty"` // Code ISRC pour identification
 
-	DiscogsReleaseID *int64 `json:"discogs_release_id,omitempty"`
-	HasTracks        bool   `json:"has_tracks"`
+	DiscogsReleaseID *int64  `json:"discogs_release_id,omitempty"`
+	DiscogsNotes     *string `json:"discogs_notes,omitempty"`
+	HasTracks        bool    `json:"has_tracks"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

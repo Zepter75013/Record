@@ -167,10 +167,11 @@ const isApplyingPreview = ref(false)
 const previewTracklistTracks = ref([])
 const previewGroups = computed(() => groupTracksByDiscSide(previewTracklistTracks.value))
 const previewTotalDuration = computed(() => formatDuration(sumDuration(previewTracklistTracks.value)))
-// Commentaire suggéré par Discogs (notes de pressage/édition, ex: "Limited
-// edition orange vinyl") — coché par défaut seulement si le disque n'a pas
-// déjà un commentaire, pour ne jamais écraser une note existante sans
-// action explicite de l'utilisateur.
+// Suggestion pour le champ "Notes Discogs" (infos de pressage/édition, ex:
+// "Limited edition orange vinyl") — séparé du champ Commentaires
+// (personnel) pour ne jamais l'écraser. Coché par défaut seulement si ce
+// champ est encore vide, pour ne jamais remplacer une valeur existante
+// sans action explicite de l'utilisateur.
 const previewNotesSuggestion = ref('')
 const applyNotesSuggestion = ref(false)
 
@@ -181,7 +182,7 @@ const refetchTracksFromInternet = async (vinyl) => {
     const result = await previewTracklist(vinyl.id)
     previewTracklistTracks.value = result?.tracks || []
     previewNotesSuggestion.value = (result?.notes || '').trim()
-    applyNotesSuggestion.value = !!previewNotesSuggestion.value && !vinyl.notes?.trim()
+    applyNotesSuggestion.value = !!previewNotesSuggestion.value && !vinyl.discogs_notes?.trim()
     if (!previewTracklistTracks.value.length) {
       alert('Aucune piste trouvée sur Discogs pour ce disque.')
       return
@@ -225,8 +226,9 @@ const applyTracklistPreview = async () => {
           barcode: vinyl.barcode || null,
           price: vinyl.price ?? null,
           quantity: vinyl.quantity || 1,
-          notes: previewNotesSuggestion.value,
-          isrc: vinyl.isrc || null
+          notes: vinyl.notes || null,
+          isrc: vinyl.isrc || null,
+          discogs_notes: previewNotesSuggestion.value
         }),
         headers: { 'Content-Type': 'application/json' }
       })
@@ -847,6 +849,12 @@ onMounted(() => {
                   <div class="field-value textarea">{{ selectedVinyl.notes || '—' }}</div>
                 </div>
               </div>
+              <div v-if="selectedVinyl.discogs_notes" class="field-row single">
+                <div class="field full">
+                  <label>Notes Discogs</label>
+                  <div class="field-value textarea">{{ selectedVinyl.discogs_notes }}</div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1006,7 +1014,7 @@ onMounted(() => {
           <label v-if="previewNotesSuggestion" class="preview-notes-suggestion">
             <input type="checkbox" v-model="applyNotesSuggestion" />
             <span class="preview-notes-text">
-              <strong>Commentaire trouvé sur Discogs :</strong> « {{ previewNotesSuggestion }} »
+              <strong>Notes Discogs trouvées :</strong> « {{ previewNotesSuggestion }} »
             </span>
           </label>
 

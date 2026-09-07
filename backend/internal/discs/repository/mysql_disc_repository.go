@@ -47,9 +47,9 @@ func (r *MySQLDiscRepository) Create(ctx context.Context, disc *discs.Disc) erro
 	query := `
 		INSERT INTO records_vinyls (
 			title, artist_id, genre_id, format_id, country_id, label_id, release_year, barcode, cover_url, notes, price, quantity,
-			apple_music_url, spotify_url, deezer_url, youtube_url, isrc, discogs_release_id,
+			apple_music_url, spotify_url, deezer_url, youtube_url, isrc, discogs_release_id, discogs_notes,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
 
 	result, err := r.db.ExecContext(ctx, query,
 		disc.Title,
@@ -71,6 +71,7 @@ func (r *MySQLDiscRepository) Create(ctx context.Context, disc *discs.Disc) erro
 		stringPtrToNullString(disc.YoutubeURL),
 		stringPtrToNullString(disc.ISRC),
 		int64PtrToNullInt64(disc.DiscogsReleaseID),
+		stringPtrToNullString(disc.DiscogsNotes),
 	)
 
 	if err != nil {
@@ -113,6 +114,7 @@ func (r *MySQLDiscRepository) FindAll(ctx context.Context) ([]discs.DiscWithDeta
 			v.deezer_url,
 			v.youtube_url,
 			v.isrc,
+			v.discogs_notes,
 			EXISTS(SELECT 1 FROM records_tracks t WHERE t.vinyl_id = v.id) as has_tracks,
 			v.created_at,
 			v.updated_at
@@ -158,6 +160,7 @@ func (r *MySQLDiscRepository) FindAll(ctx context.Context) ([]discs.DiscWithDeta
 			&d.DeezerURL,
 			&d.YoutubeURL,
 			&d.ISRC,
+			&d.DiscogsNotes,
 			&d.HasTracks,
 			&d.CreatedAt,
 			&d.UpdatedAt,
@@ -198,6 +201,7 @@ func (r *MySQLDiscRepository) FindByID(ctx context.Context, id int) (*discs.Disc
 			v.youtube_url,
 			v.isrc,
 			v.discogs_release_id,
+			v.discogs_notes,
 			EXISTS(SELECT 1 FROM records_tracks t WHERE t.vinyl_id = v.id) as has_tracks,
 			v.created_at,
 			v.updated_at
@@ -238,6 +242,7 @@ func (r *MySQLDiscRepository) FindByID(ctx context.Context, id int) (*discs.Disc
 		&d.YoutubeURL,
 		&d.ISRC,
 		&d.DiscogsReleaseID,
+		&d.DiscogsNotes,
 		&d.HasTracks,
 		&d.CreatedAt,
 		&d.UpdatedAt,
@@ -270,6 +275,7 @@ func (r *MySQLDiscRepository) Update(ctx context.Context, disc *discs.Disc) erro
 			deezer_url = ?,
 			youtube_url = ?,
 			isrc = ?,
+			discogs_notes = ?,
 			updated_at = NOW()
 		WHERE id = ?`
 
@@ -294,6 +300,7 @@ func (r *MySQLDiscRepository) Update(ctx context.Context, disc *discs.Disc) erro
 		stringPtrToNullString(disc.DeezerURL),
 		stringPtrToNullString(disc.YoutubeURL),
 		stringPtrToNullString(disc.ISRC),
+		stringPtrToNullString(disc.DiscogsNotes),
 		idVal,
 	)
 
@@ -418,6 +425,7 @@ func (r *MySQLDiscRepository) FindByTitleWithDetails(ctx context.Context, title 
 			v.deezer_url,
 			v.youtube_url,
 			v.isrc,
+			v.discogs_notes,
 			v.created_at,
 			v.updated_at
 		FROM records_vinyls v
@@ -456,6 +464,7 @@ func (r *MySQLDiscRepository) FindByTitleWithDetails(ctx context.Context, title 
 		&d.DeezerURL,
 		&d.YoutubeURL,
 		&d.ISRC,
+		&d.DiscogsNotes,
 		&d.CreatedAt,
 		&d.UpdatedAt,
 	)
@@ -496,6 +505,7 @@ func (r *MySQLDiscRepository) FindByBarcodeWithDetails(ctx context.Context, barc
 			v.deezer_url,
 			v.youtube_url,
 			v.isrc,
+			v.discogs_notes,
 			v.created_at,
 			v.updated_at
 		FROM records_vinyls v
@@ -534,6 +544,7 @@ func (r *MySQLDiscRepository) FindByBarcodeWithDetails(ctx context.Context, barc
 		&d.DeezerURL,
 		&d.YoutubeURL,
 		&d.ISRC,
+		&d.DiscogsNotes,
 		&d.CreatedAt,
 		&d.UpdatedAt,
 	)

@@ -1202,6 +1202,7 @@ func (s *DiscService) UpdateDisc(
 	deezerURL *string,
 	youtubeURL *string,
 	isrc *string,
+	discogsNotes *string,
 ) (*discs.DiscWithDetails, error) {
 	if barcode != nil && *barcode != "" {
 		exists, existingDisc, err := s.CheckBarcodeExists(ctx, *barcode, &id)
@@ -1217,6 +1218,13 @@ func (s *DiscService) UpdateDisc(
 		return nil, err
 	}
 	idPtr := id
+	// discogs_notes n'est renseigné que via la suggestion "Mettre à jour
+	// depuis Discogs" — un appelant qui ne l'envoie pas (formulaire
+	// d'édition classique, etc.) ne doit pas l'effacer.
+	finalDiscogsNotes := discogsNotes
+	if finalDiscogsNotes == nil {
+		finalDiscogsNotes = currentDisc.DiscogsNotes
+	}
 	finalArtistName := artistName
 	if finalArtistName == "" && currentDisc.ArtistName != "" {
 		finalArtistName = currentDisc.ArtistName
@@ -1317,6 +1325,7 @@ func (s *DiscService) UpdateDisc(
 		DeezerURL:     deezerURL,
 		YoutubeURL:    youtubeURL,
 		ISRC:          isrc,
+		DiscogsNotes:  finalDiscogsNotes,
 	}
 	if err := s.repo.Update(ctx, disc); err != nil {
 		return nil, fmt.Errorf("échec de la mise à jour en base : %w", err)

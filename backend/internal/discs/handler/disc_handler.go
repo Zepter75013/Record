@@ -69,6 +69,7 @@ type UpdateDiscRequest struct {
 	DeezerURL     *string `json:"deezer_url,omitempty"`
 	YoutubeURL    *string `json:"youtube_url,omitempty"`
 	ISRC          *string `json:"isrc,omitempty"`
+	DiscogsNotes  *string `json:"discogs_notes,omitempty"`
 }
 
 type PreviewCoverRequest struct {
@@ -332,6 +333,7 @@ func (h *DiscHandler) UpdateDisc(w http.ResponseWriter, r *http.Request) {
 		req.DeezerURL,
 		req.YoutubeURL,
 		req.ISRC,
+		req.DiscogsNotes,
 	)
 
 	if err != nil {
