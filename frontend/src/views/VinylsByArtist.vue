@@ -811,12 +811,36 @@ onMounted(() => {
                   <div class="field-value textarea">{{ selectedVinyl.notes || '—' }}</div>
                 </div>
               </div>
+            </div>
+          </div>
 
-              <div v-if="isCd" class="tracklist-face">
-                <h4>Pistes</h4>
+          <!-- Liste des pistes : hors de .detail-content pour utiliser toute
+               la largeur du panneau, pas seulement celle de la colonne
+               champs (à droite de la pochette). -->
+          <div class="detail-tracklist">
+            <div v-if="isCd" class="tracklist-face">
+              <h4>Pistes</h4>
+              <p v-if="tracksLoading" class="tracklist-loading">Chargement…</p>
+              <ol v-else-if="vinylTracks.length">
+                <li v-for="(t, i) in vinylTracks" :key="t.id ?? i">
+                  <span class="track-pos">{{ t.position || i + 1 }}</span>
+                  <span class="track-title">{{ t.title }}</span>
+                  <span class="track-duration" v-if="t.duration">{{ t.duration }}</span>
+                  <StreamingButtons :disc="selectedVinyl" :track="t" inline />
+                </li>
+              </ol>
+              <p v-else class="tracklist-empty">Aucune piste</p>
+            </div>
+
+            <div v-else-if="!isMultiDisc" class="tracklist-columns">
+              <div class="tracklist-face">
+                <h4>
+                  Face A
+                  <span v-if="faceASeconds" class="face-duration">({{ faceADuration }})</span>
+                </h4>
                 <p v-if="tracksLoading" class="tracklist-loading">Chargement…</p>
-                <ol v-else-if="vinylTracks.length">
-                  <li v-for="(t, i) in vinylTracks" :key="t.id ?? i">
+                <ol v-else-if="faceATracks.length">
+                  <li v-for="(t, i) in faceATracks" :key="t.id ?? i">
                     <span class="track-pos">{{ t.position || i + 1 }}</span>
                     <span class="track-title">{{ t.title }}</span>
                     <span class="track-duration" v-if="t.duration">{{ t.duration }}</span>
@@ -825,70 +849,51 @@ onMounted(() => {
                 </ol>
                 <p v-else class="tracklist-empty">Aucune piste</p>
               </div>
-
-              <div v-else-if="!isMultiDisc" class="tracklist-columns">
-                <div class="tracklist-face">
-                  <h4>
-                    Face A
-                    <span v-if="faceASeconds" class="face-duration">({{ faceADuration }})</span>
-                  </h4>
-                  <p v-if="tracksLoading" class="tracklist-loading">Chargement…</p>
-                  <ol v-else-if="faceATracks.length">
-                    <li v-for="(t, i) in faceATracks" :key="t.id ?? i">
-                      <span class="track-pos">{{ t.position || i + 1 }}</span>
-                      <span class="track-title">{{ t.title }}</span>
-                      <span class="track-duration" v-if="t.duration">{{ t.duration }}</span>
-                      <StreamingButtons :disc="selectedVinyl" :track="t" inline />
-                    </li>
-                  </ol>
-                  <p v-else class="tracklist-empty">Aucune piste</p>
-                </div>
-                <div class="tracklist-face">
-                  <h4>
-                    Face B
-                    <span v-if="faceBSeconds" class="face-duration">({{ faceBDuration }})</span>
-                  </h4>
-                  <p v-if="tracksLoading" class="tracklist-loading">Chargement…</p>
-                  <ol v-else-if="faceBTracks.length">
-                    <li v-for="(t, i) in faceBTracks" :key="t.id ?? i">
-                      <span class="track-pos">{{ t.position || i + 1 }}</span>
-                      <span class="track-title">{{ t.title }}</span>
-                      <span class="track-duration" v-if="t.duration">{{ t.duration }}</span>
-                      <StreamingButtons :disc="selectedVinyl" :track="t" inline />
-                    </li>
-                  </ol>
-                  <p v-else class="tracklist-empty">Aucune piste</p>
-                </div>
+              <div class="tracklist-face">
+                <h4>
+                  Face B
+                  <span v-if="faceBSeconds" class="face-duration">({{ faceBDuration }})</span>
+                </h4>
+                <p v-if="tracksLoading" class="tracklist-loading">Chargement…</p>
+                <ol v-else-if="faceBTracks.length">
+                  <li v-for="(t, i) in faceBTracks" :key="t.id ?? i">
+                    <span class="track-pos">{{ t.position || i + 1 }}</span>
+                    <span class="track-title">{{ t.title }}</span>
+                    <span class="track-duration" v-if="t.duration">{{ t.duration }}</span>
+                    <StreamingButtons :disc="selectedVinyl" :track="t" inline />
+                  </li>
+                </ol>
+                <p v-else class="tracklist-empty">Aucune piste</p>
               </div>
+            </div>
 
-              <div v-else class="disc-groups">
-                <div v-for="d in discsWithDuration" :key="d.disc" class="disc-group-block">
-                  <h4 class="disc-group-title">Disque {{ d.disc }}</h4>
-                  <div class="tracklist-columns">
-                    <div v-for="s in d.sides" :key="s.letter" class="tracklist-face">
-                      <h4>
-                        Face {{ s.letter }}
-                        <span v-if="s.seconds" class="face-duration">({{ s.duration }})</span>
-                      </h4>
-                      <p v-if="tracksLoading" class="tracklist-loading">Chargement…</p>
-                      <ol v-else-if="s.tracks.length">
-                        <li v-for="(t, i) in s.tracks" :key="t.id ?? i">
-                          <span class="track-pos">{{ t.position || i + 1 }}</span>
-                          <span class="track-title">{{ t.title }}</span>
-                          <span class="track-duration" v-if="t.duration">{{ t.duration }}</span>
-                          <StreamingButtons :disc="selectedVinyl" :track="t" inline />
-                        </li>
-                      </ol>
-                      <p v-else class="tracklist-empty">Aucune piste</p>
-                    </div>
+            <div v-else class="disc-groups">
+              <div v-for="d in discsWithDuration" :key="d.disc" class="disc-group-block">
+                <h4 class="disc-group-title">Disque {{ d.disc }}</h4>
+                <div class="tracklist-columns">
+                  <div v-for="s in d.sides" :key="s.letter" class="tracklist-face">
+                    <h4>
+                      Face {{ s.letter }}
+                      <span v-if="s.seconds" class="face-duration">({{ s.duration }})</span>
+                    </h4>
+                    <p v-if="tracksLoading" class="tracklist-loading">Chargement…</p>
+                    <ol v-else-if="s.tracks.length">
+                      <li v-for="(t, i) in s.tracks" :key="t.id ?? i">
+                        <span class="track-pos">{{ t.position || i + 1 }}</span>
+                        <span class="track-title">{{ t.title }}</span>
+                        <span class="track-duration" v-if="t.duration">{{ t.duration }}</span>
+                        <StreamingButtons :disc="selectedVinyl" :track="t" inline />
+                      </li>
+                    </ol>
+                    <p v-else class="tracklist-empty">Aucune piste</p>
                   </div>
                 </div>
               </div>
-
-              <p v-if="!tracksLoading && grandTotalSeconds" class="tracklist-grand-total">
-                Durée totale : <strong>{{ totalDuration }}</strong>
-              </p>
             </div>
+
+            <p v-if="!tracksLoading && grandTotalSeconds" class="tracklist-grand-total">
+              Durée totale : <strong>{{ totalDuration }}</strong>
+            </p>
           </div>
         </section>
 
@@ -1675,6 +1680,10 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 24px;
+}
+
+.detail-tracklist {
+  margin-top: 20px;
 }
 
 /* flex-basis bas (= min-width), pas 260px : la décision de passer à la
