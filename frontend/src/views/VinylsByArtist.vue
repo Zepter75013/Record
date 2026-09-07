@@ -734,19 +734,44 @@ onMounted(() => {
 
         <!-- Fiche détaillée de l'album sélectionné -->
         <section class="vinyl-detail-panel" v-if="selectedVinyl">
+          <div class="detail-header">
+            <div class="detail-header-artist">{{ selectedArtist.name }}</div>
+            <h2 class="detail-header-title">{{ selectedVinyl.title }}</h2>
+          </div>
           <div class="detail-content">
-            <div class="detail-fields">
-              <div class="field-row">
-                <div class="field">
-                  <label>Artiste</label>
-                  <div class="field-value">{{ selectedArtist.name }}</div>
+            <div class="detail-side">
+              <div class="detail-cover">
+                <img
+                  v-if="selectedVinyl.cover_url"
+                  :src="normalizeCoverUrl(selectedVinyl.cover_url)"
+                  :alt="selectedVinyl.title"
+                  @error="handleImageError"
+                />
+                <div class="cover-fallback" :style="{ display: selectedVinyl.cover_url ? 'none' : 'flex' }">
+                  <span class="fallback-icon">💿</span>
                 </div>
-                <div class="field">
-                  <label>Titre</label>
-                  <div class="field-value">{{ selectedVinyl.title }}</div>
-                </div>
+                <StreamingButtons :disc="selectedVinyl" />
               </div>
-              <div class="field-row">
+              <div class="detail-actions">
+                <button type="button" class="detail-action-btn" @click="openTracklistModal(selectedVinyl)">
+                  🎵 Gérer les pistes
+                </button>
+                <button
+                  type="button"
+                  class="detail-action-btn"
+                  :disabled="isRefetchingTracks"
+                  @click="refetchTracksFromInternet(selectedVinyl)"
+                >
+                  {{ isRefetchingTracks ? '⏳ Récupération…' : '🔄 Mettre à jour depuis Discogs' }}
+                </button>
+                <button type="button" class="detail-action-btn primary" @click="viewVinylDetails(selectedVinyl)">
+                  ✏️ Modifier
+                </button>
+              </div>
+            </div>
+
+            <div class="detail-fields">
+              <div class="field-grid">
                 <div class="field">
                   <label>Genre</label>
                   <div class="field-value">{{ selectedVinyl.genre_name || '—' }}</div>
@@ -755,8 +780,10 @@ onMounted(() => {
                   <label>Format</label>
                   <div class="field-value">{{ selectedVinyl.format_name || '—' }}</div>
                 </div>
-              </div>
-              <div class="field-row">
+                <div class="field">
+                  <label>Année</label>
+                  <div class="field-value">{{ selectedVinyl.release_year || '—' }}</div>
+                </div>
                 <div class="field">
                   <label>Éditeur</label>
                   <div class="field-value">{{ selectedVinyl.label_name || '—' }}</div>
@@ -765,18 +792,10 @@ onMounted(() => {
                   <label>Pays</label>
                   <div class="field-value">{{ selectedVinyl.country_name || '—' }}</div>
                 </div>
-              </div>
-              <div class="field-row">
-                <div class="field">
-                  <label>Année</label>
-                  <div class="field-value">{{ selectedVinyl.release_year || '—' }}</div>
-                </div>
                 <div class="field">
                   <label>Code-barres</label>
                   <div class="field-value">{{ selectedVinyl.barcode || '—' }}</div>
                 </div>
-              </div>
-              <div class="field-row">
                 <div class="field">
                   <label>Prix</label>
                   <div class="field-value">{{ formatPrice(selectedVinyl.price) }}</div>
@@ -869,37 +888,6 @@ onMounted(() => {
               <p v-if="!tracksLoading && grandTotalSeconds" class="tracklist-grand-total">
                 Durée totale : <strong>{{ totalDuration }}</strong>
               </p>
-            </div>
-
-            <div class="detail-side">
-              <div class="detail-cover">
-                <img
-                  v-if="selectedVinyl.cover_url"
-                  :src="normalizeCoverUrl(selectedVinyl.cover_url)"
-                  :alt="selectedVinyl.title"
-                  @error="handleImageError"
-                />
-                <div class="cover-fallback" :style="{ display: selectedVinyl.cover_url ? 'none' : 'flex' }">
-                  <span class="fallback-icon">💿</span>
-                </div>
-                <StreamingButtons :disc="selectedVinyl" />
-              </div>
-              <div class="detail-actions">
-                <button type="button" class="detail-action-btn" @click="openTracklistModal(selectedVinyl)">
-                  🎵 Gérer les pistes
-                </button>
-                <button
-                  type="button"
-                  class="detail-action-btn"
-                  :disabled="isRefetchingTracks"
-                  @click="refetchTracksFromInternet(selectedVinyl)"
-                >
-                  {{ isRefetchingTracks ? '⏳ Récupération…' : '🔄 Mettre à jour depuis Discogs' }}
-                </button>
-                <button type="button" class="detail-action-btn primary" @click="viewVinylDetails(selectedVinyl)">
-                  ✏️ Modifier
-                </button>
-              </div>
             </div>
           </div>
         </section>
@@ -1653,6 +1641,26 @@ onMounted(() => {
   min-width: 0;
 }
 
+.detail-header {
+  margin-bottom: 16px;
+}
+
+.detail-header-artist {
+  font-size: 0.75em;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+.detail-header-title {
+  margin: 0;
+  font-size: 1.6em;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.2;
+}
+
 /* flex-wrap plutôt que CSS Grid à colonnes fixes : la largeur réellement
    disponible ici ne dépend pas que de la largeur d'écran (ce qu'une
    @media (max-width) peut voir), mais aussi de la barre latérale de
@@ -1672,6 +1680,16 @@ onMounted(() => {
 .detail-fields {
   flex: 1 1 260px;
   min-width: 220px;
+}
+
+/* auto-fit plutôt qu'un nombre de colonnes fixe : le nombre de colonnes
+   s'ajuste tout seul à la largeur réellement disponible (même piège que
+   .detail-content ci-dessus si c'était figé à 3 colonnes). */
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .field-row {
@@ -1841,10 +1859,6 @@ onMounted(() => {
   flex: 0 1 220px;
   gap: 12px;
   min-width: 160px;
-  /* Passe avant .detail-fields dans l'ordre visuel (sans toucher au DOM) :
-     la pochette doit apparaître en haut, pas après tout le contenu des
-     champs et des pistes une fois la rangée repassée à la ligne. */
-  order: -1;
 }
 
 .detail-cover {
