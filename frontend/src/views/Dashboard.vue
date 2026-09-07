@@ -55,9 +55,15 @@ const isSidebarCollapsed = ref(localStorage.getItem(COLLAPSED_STORAGE_KEY) === '
 const isResizing = ref(false)
 
 // Tiroir mobile : la sidebar bascule en tiroir en recouvrement en dessous de
-// 920px, indépendamment du seuil 768px utilisé par le contenu (tableaux/
-// cartes des vues CRUD, non concerné par cette passe de restylage).
-const SIDEBAR_MOBILE_QUERY = '(max-width: 920px)'
+// 1024px, indépendamment du seuil 768px utilisé par le contenu (tableaux/
+// cartes des vues CRUD, non concerné par cette passe de restylage). 1024px
+// (et non 920px) pour couvrir aussi les iPad en portrait — leur largeur va
+// de ~744 à 1024px selon le modèle, alors que même le plus étroit en
+// paysage dépasse 1080px : ce seuil couvre tout le portrait sans jamais
+// déclencher le tiroir en paysage. Sans ça, la sidebar restait ouverte en
+// permanence sur iPad portrait (largeur > 920px pour la plupart des
+// modèles), ne laissant presque plus de place au contenu.
+const SIDEBAR_MOBILE_QUERY = '(max-width: 1024px)'
 const sidebarMobileQuery = window.matchMedia(SIDEBAR_MOBILE_QUERY)
 const isMobile = ref(sidebarMobileQuery.matches)
 
@@ -435,7 +441,7 @@ watch(() => route.path, async (newPath) => {
 <template>
   <div class="dashboard-layout" :class="{ 'sidebar-collapsed': effectiveCollapsed }">
 
-    <!-- Bouton hamburger (tiroir mobile, <920px) -->
+    <!-- Bouton hamburger (tiroir mobile, <1024px) -->
     <button
       v-if="isMobile"
       class="mobile-menu-toggle"
@@ -1029,7 +1035,7 @@ watch(() => route.path, async (newPath) => {
   grid-template-columns: 80px 1fr;
 }
 
-@media (max-width: 920px) {
+@media (max-width: 1024px) {
   .dashboard-layout {
     grid-template-columns: 1fr !important;
   }
@@ -1074,7 +1080,7 @@ watch(() => route.path, async (newPath) => {
   display: none;
 }
 
-@media (max-width: 920px) {
+@media (max-width: 1024px) {
   .mobile-menu-toggle {
     display: grid;
     place-items: center;
