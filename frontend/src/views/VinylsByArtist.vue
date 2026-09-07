@@ -1829,13 +1829,21 @@ onMounted(() => {
 .detail-cover {
   position: relative;
   width: 100%;
-  aspect-ratio: 1;
+  /* padding-top (et non aspect-ratio) pour forcer un carré strictement lié
+     à la largeur du conteneur : sur iPad (Safari), aspect-ratio combiné à
+     une image en enfant (height: 100%) laissait par moments la pochette se
+     dimensionner sur ses propres dimensions intrinsèques plutôt que sur le
+     carré attendu, débordant sur les champs voisins malgré overflow:
+     hidden — cette technique classique n'a pas cette ambiguïté. */
+  padding-top: 100%;
   border-radius: 10px;
   overflow: hidden;
   background: rgba(var(--tint-rgb), 0.06);
 }
 
 .detail-cover img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
