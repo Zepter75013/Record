@@ -1841,6 +1841,10 @@ onMounted(() => {
   flex: 0 1 220px;
   gap: 12px;
   min-width: 160px;
+  /* Passe avant .detail-fields dans l'ordre visuel (sans toucher au DOM) :
+     la pochette doit apparaître en haut, pas après tout le contenu des
+     champs et des pistes une fois la rangée repassée à la ligne. */
+  order: -1;
 }
 
 .detail-cover {
