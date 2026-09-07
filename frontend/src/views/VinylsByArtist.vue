@@ -1677,9 +1677,15 @@ onMounted(() => {
   gap: 24px;
 }
 
+/* flex-basis bas (= min-width), pas 260px : la décision de passer à la
+   ligne se fait sur le flex-basis de chaque item, pas sur ce que
+   min-width autoriserait comme rétrécissement — un basis élevé déclenche
+   le wrap même quand tout tiendrait très bien une fois rétréci. flex-grow
+   (3, contre 1 sur .detail-side) fait grandir cette colonne pour occuper
+   l'espace restant dès qu'il y en a. */
 .detail-fields {
-  flex: 1 1 260px;
-  min-width: 220px;
+  flex: 3 1 100px;
+  min-width: 100px;
 }
 
 /* auto-fit plutôt qu'un nombre de colonnes fixe : le nombre de colonnes
@@ -1687,7 +1693,7 @@ onMounted(() => {
    .detail-content ci-dessus si c'était figé à 3 colonnes). */
 .field-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
   gap: 12px;
   margin-bottom: 12px;
 }
@@ -1856,9 +1862,10 @@ onMounted(() => {
 .detail-side {
   display: flex;
   flex-direction: column;
-  flex: 0 1 220px;
+  flex: 1 1 80px;
+  max-width: 220px;
   gap: 12px;
-  min-width: 160px;
+  min-width: 80px;
 }
 
 .detail-cover {
@@ -2069,6 +2076,7 @@ onMounted(() => {
 
   .detail-side {
     flex-basis: 100%;
+    max-width: none;
     min-width: 0;
   }
 
