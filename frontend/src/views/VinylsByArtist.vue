@@ -6,9 +6,10 @@ import { useApi } from '@/composables/useApi'
 import StreamingButtons from '@/components/StreamingButtons.vue'
 import TracklistModal from '@/components/TracklistModal.vue'
 import DiscsModal from '@/components/DiscsModal/DiscsModal.vue'
-import { fetchTracks, previewTracklist, updateTracks } from '@/services/tracks'
+import DiscogsTracklistRefresh from '@/components/DiscogsTracklistRefresh.vue'
+import { fetchTracks } from '@/services/tracks'
 import { formatCurrency } from '@/utils/format'
-import { groupTracksByDiscSide, isCdFormat } from '@/utils/discSides'
+import { groupTracksByDiscSide, isCdFormat, formatDuration, sumDuration } from '@/utils/discSides'
 
 const router = useRouter()
 const { apiFetch } = useApi()
@@ -158,93 +159,21 @@ const selectVinyl = (vinyl) => {
   if (vinyl) isAlbumsListCollapsed.value = true
 }
 
-// Recherche une nouvelle tracklist sur Discogs, sans rien écraser tout de
-// suite : on affiche la proposition dans une modale, et seul un clic sur
-// "Valider et remplacer" l'enregistre (Annuler ne change rien).
-const isRefetchingTracks = ref(false)
-const isPreviewModalOpen = ref(false)
-const isApplyingPreview = ref(false)
-const previewTracklistTracks = ref([])
-const previewGroups = computed(() => groupTracksByDiscSide(previewTracklistTracks.value))
-const previewTotalDuration = computed(() => formatDuration(sumDuration(previewTracklistTracks.value)))
-// Suggestion pour le champ "Notes Discogs" (infos de pressage/édition, ex:
-// "Limited edition orange vinyl") — séparé du champ Commentaires
-// (personnel) pour ne jamais l'écraser. Coché par défaut seulement si ce
-// champ est encore vide, pour ne jamais remplacer une valeur existante
-// sans action explicite de l'utilisateur.
-const previewNotesSuggestion = ref('')
-const applyNotesSuggestion = ref(false)
-
-const refetchTracksFromInternet = async (vinyl) => {
-  if (!vinyl?.id) return
-  isRefetchingTracks.value = true
-  try {
-    const result = await previewTracklist(vinyl.id)
-    previewTracklistTracks.value = result?.tracks || []
-    previewNotesSuggestion.value = (result?.notes || '').trim()
-    applyNotesSuggestion.value = !!previewNotesSuggestion.value && !vinyl.discogs_notes?.trim()
-    if (!previewTracklistTracks.value.length) {
-      alert('Aucune piste trouvée sur Discogs pour ce disque.')
-      return
-    }
-    isPreviewModalOpen.value = true
-  } catch (err) {
-    alert(`Échec de la recherche sur Discogs : ${err.message}`)
-  } finally {
-    isRefetchingTracks.value = false
-  }
+// Handlers pour <DiscogsTracklistRefresh> (voir ce composant pour la
+// logique de récupération/validation) — celui-ci ne connaît que le disque
+// courant, c'est à l'appelant de répercuter le résultat sur son propre
+// état (tracklist affichée, liste des albums, fiche courante).
+const handleDiscogsTracksUpdated = (tracks) => {
+  vinylTracks.value = tracks
+  const found = tracks.length > 0
+  const localVinyl = vinyls.value.find((v) => v.id === selectedVinyl.value?.id)
+  if (localVinyl) localVinyl.has_tracks = found
 }
 
-const cancelTracklistPreview = () => {
-  isPreviewModalOpen.value = false
-  previewTracklistTracks.value = []
-  previewNotesSuggestion.value = ''
-}
-
-const applyTracklistPreview = async () => {
-  if (!selectedVinyl.value?.id) return
-  isApplyingPreview.value = true
-  try {
-    const result = await updateTracks(selectedVinyl.value.id, previewTracklistTracks.value)
-    vinylTracks.value = result || []
-    const found = vinylTracks.value.length > 0
-    const localVinyl = vinyls.value.find((v) => v.id === selectedVinyl.value.id)
-    if (localVinyl) localVinyl.has_tracks = found
-
-    if (applyNotesSuggestion.value && previewNotesSuggestion.value) {
-      const vinyl = selectedVinyl.value
-      const updated = await apiFetch(`discs/${vinyl.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          title: vinyl.title,
-          artist_id: vinyl.artist_id,
-          genre_id: vinyl.genre_id || null,
-          format_id: vinyl.format_id || null,
-          country_id: vinyl.country_id || null,
-          label_id: vinyl.label_id || null,
-          release_year: vinyl.release_year || null,
-          barcode: vinyl.barcode || null,
-          price: vinyl.price ?? null,
-          quantity: vinyl.quantity || 1,
-          notes: vinyl.notes || null,
-          isrc: vinyl.isrc || null,
-          discogs_notes: previewNotesSuggestion.value
-        }),
-        headers: { 'Content-Type': 'application/json' }
-      })
-      const idx = vinyls.value.findIndex((v) => v.id === updated.id)
-      if (idx !== -1) vinyls.value.splice(idx, 1, updated)
-      if (selectedVinyl.value?.id === updated.id) selectedVinyl.value = updated
-    }
-
-    isPreviewModalOpen.value = false
-    previewTracklistTracks.value = []
-    previewNotesSuggestion.value = ''
-  } catch (err) {
-    alert(`Échec de l'enregistrement des pistes : ${err.message}`)
-  } finally {
-    isApplyingPreview.value = false
-  }
+const handleDiscogsDiscUpdated = (updated) => {
+  const idx = vinyls.value.findIndex((v) => v.id === updated.id)
+  if (idx !== -1) vinyls.value.splice(idx, 1, updated)
+  if (selectedVinyl.value?.id === updated.id) selectedVinyl.value = updated
 }
 
 // Regroupe les pistes par disque puis par face (A/B) selon la lettre de
@@ -273,26 +202,6 @@ const singleDiscSides = computed(() => {
 const faceATracks = computed(() => singleDiscSides.value.A)
 const faceBTracks = computed(() => singleDiscSides.value.B)
 
-// Durées : les pistes stockent "mm:ss" (ou "h:mm:ss") en texte libre —
-// on convertit en secondes pour sommer, puis on reformate.
-const parseDuration = (str) => {
-  if (!str) return 0
-  const parts = str.split(':').map((n) => parseInt(n, 10))
-  if (parts.some((n) => Number.isNaN(n))) return 0
-  return parts.reduce((acc, val) => acc * 60 + val, 0)
-}
-
-const formatDuration = (totalSeconds) => {
-  if (!totalSeconds) return '—'
-  const h = Math.floor(totalSeconds / 3600)
-  const m = Math.floor((totalSeconds % 3600) / 60)
-  const s = totalSeconds % 60
-  const mm = h > 0 ? String(m).padStart(2, '0') : String(m)
-  const ss = String(s).padStart(2, '0')
-  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
-}
-
-const sumDuration = (tracks) => tracks.reduce((sum, t) => sum + parseDuration(t.duration), 0)
 const faceASeconds = computed(() => sumDuration(faceATracks.value))
 const faceBSeconds = computed(() => sumDuration(faceBTracks.value))
 const faceADuration = computed(() => formatDuration(faceASeconds.value))
@@ -794,14 +703,11 @@ onMounted(() => {
                 <button type="button" class="detail-action-btn" @click="openTracklistModal(selectedVinyl)">
                   🎵 Gérer les pistes
                 </button>
-                <button
-                  type="button"
-                  class="detail-action-btn"
-                  :disabled="isRefetchingTracks"
-                  @click="refetchTracksFromInternet(selectedVinyl)"
-                >
-                  {{ isRefetchingTracks ? '⏳ Récupération…' : '🔄 Mettre à jour depuis Discogs' }}
-                </button>
+                <DiscogsTracklistRefresh
+                  :disc="selectedVinyl"
+                  @tracks-updated="handleDiscogsTracksUpdated"
+                  @disc-updated="handleDiscogsDiscUpdated"
+                />
                 <button type="button" class="detail-action-btn primary" @click="viewVinylDetails(selectedVinyl)">
                   ✏️ Modifier
                 </button>
@@ -975,60 +881,6 @@ onMounted(() => {
       @save="saveEditedDisc"
     />
 
-    <Teleport to="body">
-      <div v-if="isPreviewModalOpen" class="modal-overlay" @click.self="cancelTracklistPreview">
-        <div class="modal-card preview-tracklist-card">
-          <div class="modal-header">
-            <h2>🔄 Tracklist trouvée sur Discogs</h2>
-          </div>
-          <p class="preview-intro">
-            Pour « {{ selectedVinyl?.title }} » — {{ previewTracklistTracks.length }} piste(s),
-            {{ previewTotalDuration }}. Vérifiez avant de remplacer la tracklist actuelle.
-          </p>
-
-          <div class="preview-tracklist">
-            <div v-for="d in previewGroups.discs" :key="d.disc" class="preview-disc-group">
-              <h4 v-if="previewGroups.discs.length > 1" class="preview-disc-title">Disque {{ d.disc }}</h4>
-              <div class="preview-sides">
-                <div v-for="s in d.sides" :key="s.letter" class="preview-side">
-                  <h5 v-if="s.tracks.length">Face {{ s.letter }}</h5>
-                  <ol v-if="s.tracks.length">
-                    <li v-for="(t, i) in s.tracks" :key="i">
-                      <span class="preview-track-pos">{{ t.position || i + 1 }}</span>
-                      <span class="preview-track-title">{{ t.title }}</span>
-                      <span class="preview-track-duration" v-if="t.duration">{{ t.duration }}</span>
-                    </li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-            <ol v-if="previewGroups.noFace.length" class="preview-noface">
-              <li v-for="(t, i) in previewGroups.noFace" :key="i">
-                <span class="preview-track-pos">{{ t.position || i + 1 }}</span>
-                <span class="preview-track-title">{{ t.title }}</span>
-                <span class="preview-track-duration" v-if="t.duration">{{ t.duration }}</span>
-              </li>
-            </ol>
-          </div>
-
-          <label v-if="previewNotesSuggestion" class="preview-notes-suggestion">
-            <input type="checkbox" v-model="applyNotesSuggestion" />
-            <span class="preview-notes-text">
-              <strong>Notes Discogs trouvées :</strong> « {{ previewNotesSuggestion }} »
-            </span>
-          </label>
-
-          <div class="modal-actions">
-            <button type="button" class="ghost-btn" :disabled="isApplyingPreview" @click="cancelTracklistPreview">
-              Annuler
-            </button>
-            <button type="button" class="danger-btn" :disabled="isApplyingPreview" @click="applyTracklistPreview">
-              {{ isApplyingPreview ? 'Enregistrement…' : 'Valider et remplacer' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>
 
@@ -1037,113 +889,6 @@ onMounted(() => {
   min-height: 100vh;
   background: transparent;
   padding: 20px;
-}
-
-.preview-tracklist-card {
-  max-width: 560px;
-}
-
-.preview-intro {
-  margin: 0 0 14px 0;
-  color: var(--text-soft);
-  line-height: 1.5;
-}
-
-.preview-notes-suggestion {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin-top: 14px;
-  padding: 10px 12px;
-  background: rgba(var(--tint-rgb), 0.05);
-  border: 1px solid var(--line-soft);
-  border-radius: 10px;
-  cursor: pointer;
-}
-
-.preview-notes-suggestion input[type='checkbox'] {
-  margin-top: 3px;
-  flex-shrink: 0;
-}
-
-.preview-notes-text {
-  color: var(--text-soft);
-  font-size: 0.9em;
-  line-height: 1.4;
-}
-
-.preview-tracklist {
-  max-height: 45vh;
-  overflow-y: auto;
-  display: grid;
-  gap: 14px;
-}
-
-.preview-disc-group {
-  border: 1px solid var(--line-soft);
-  border-radius: 10px;
-  padding: 10px 12px;
-  background: rgba(var(--tint-rgb), 0.02);
-}
-
-.preview-disc-title {
-  margin: 0 0 8px 0;
-  color: var(--text);
-  font-size: 0.9em;
-  font-weight: 600;
-}
-
-.preview-sides {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.preview-side h5 {
-  margin: 0 0 6px 0;
-  color: var(--text-dim);
-  font-size: 0.82em;
-}
-
-.preview-side ol,
-.preview-noface {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.preview-side li,
-.preview-noface li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 0;
-  font-size: 0.88em;
-}
-
-.preview-track-pos {
-  color: var(--text-dim);
-  min-width: 22px;
-  font-weight: 600;
-}
-
-.preview-track-title {
-  flex: 1;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.preview-track-duration {
-  color: var(--text-dim);
-  font-size: 0.9em;
-}
-
-@media (max-width: 480px) {
-  .preview-sides {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* ============================================

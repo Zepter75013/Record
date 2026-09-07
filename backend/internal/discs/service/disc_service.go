@@ -18,6 +18,7 @@ import (
 	"records-manager/backend/internal/discs/repository"
 	"records-manager/backend/internal/tracks"
 	tracksrepo "records-manager/backend/internal/tracks/repository"
+	"records-manager/backend/internal/translate"
 )
 
 type DiscService struct {
@@ -25,14 +26,16 @@ type DiscService struct {
 	discogsToken string
 	uploadsDir   string
 	trackRepo    tracksrepo.TrackRepository
+	deeplAPIKey  string
 }
 
-func NewDiscService(repo repository.DiscRepository, discogsToken string, uploadsDir string, trackRepo tracksrepo.TrackRepository) *DiscService {
+func NewDiscService(repo repository.DiscRepository, discogsToken string, uploadsDir string, trackRepo tracksrepo.TrackRepository, deeplAPIKey string) *DiscService {
 	return &DiscService{
 		repo:         repo,
 		discogsToken: discogsToken,
 		uploadsDir:   uploadsDir,
 		trackRepo:    trackRepo,
+		deeplAPIKey:  deeplAPIKey,
 	}
 }
 
@@ -874,6 +877,7 @@ func (s *DiscService) getDiscogsReleaseDetails(releaseID int64) (*CoverPreview, 
 		tracks = append(tracks, TrackItem{Position: t.Position, Title: t.Title, Duration: t.Duration})
 	}
 	prices, _ := s.getDiscogsPrices(releaseID)
+	notes := translate.ToFrench(s.deeplAPIKey, strings.TrimSpace(release.Notes))
 	return &CoverPreview{
 		CoverURL: release.CoverURL,
 		Title:    release.Title,
@@ -886,7 +890,7 @@ func (s *DiscService) getDiscogsReleaseDetails(releaseID int64) (*CoverPreview, 
 		Found:    true,
 		Prices:   prices,
 		Tracks:   tracks,
-		Notes:    strings.TrimSpace(release.Notes),
+		Notes:    notes,
 	}, nil
 }
 

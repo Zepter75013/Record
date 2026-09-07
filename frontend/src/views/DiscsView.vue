@@ -24,6 +24,11 @@ function handleTracksUpdated({ discId, hasTracks }) {
   const disc = discs.value.find((d) => d.id === discId);
   if (disc) disc.has_tracks = hasTracks;
 }
+function handleDiscUpdatedFromDiscogs(updated) {
+  const idx = discs.value.findIndex((d) => d.id === updated.id);
+  if (idx !== -1) discs.value.splice(idx, 1, updated);
+  if (currentDisc.value?.id === updated.id) currentDisc.value = { ...updated };
+}
 const API_URL = '/discs';
 // ✅ ÉTATS FILTRES & RECHERCHE
 const searchQuery = ref('');
@@ -2418,6 +2423,8 @@ Aller
 @save="handleSaveWithValidation"
 @create-artist="handleCreateArtist"
 @edit-existing-disc="handleEditExistingDisc"
+@tracks-updated="handleTracksUpdated"
+@disc-updated="handleDiscUpdatedFromDiscogs"
 />
 <!-- ✅ MODALE PISTES -->
 <TracklistModal

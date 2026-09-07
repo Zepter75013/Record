@@ -72,3 +72,26 @@ export function groupTracksByDiscSide(tracks) {
 
   return { discs, noFace }
 }
+
+// Durées : les pistes stockent "mm:ss" (ou "h:mm:ss") en texte libre — on
+// convertit en secondes pour sommer, puis on reformate.
+export function parseDuration(str) {
+  if (!str) return 0
+  const parts = str.split(':').map((n) => parseInt(n, 10))
+  if (parts.some((n) => Number.isNaN(n))) return 0
+  return parts.reduce((acc, val) => acc * 60 + val, 0)
+}
+
+export function formatDuration(totalSeconds) {
+  if (!totalSeconds) return '—'
+  const h = Math.floor(totalSeconds / 3600)
+  const m = Math.floor((totalSeconds % 3600) / 60)
+  const s = totalSeconds % 60
+  const mm = h > 0 ? String(m).padStart(2, '0') : String(m)
+  const ss = String(s).padStart(2, '0')
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
+}
+
+export function sumDuration(tracks) {
+  return (tracks || []).reduce((sum, t) => sum + parseDuration(t.duration), 0)
+}

@@ -361,7 +361,7 @@ func main() {
 	countryService := countryservice.NewCountryService(countryRepository)
 	labelService := labelservice.NewLabelService(labelRepository, countryRepository, discogsToken, deeplAPIKey)
 	statsService := statsservice.NewStatsService(statsRepository)
-	discService := discservice.NewDiscService(discRepository, discogsToken, uploadsDir, trackRepository)
+	discService := discservice.NewDiscService(discRepository, discogsToken, uploadsDir, trackRepository, deeplAPIKey)
 	platformService := platformservice.NewPlatformService(platformRepository)
 	gameGenreService := gamegenreservice.NewGameGenreService(gameGenreRepository)
 	publisherService := publisherservice.NewPublisherService(publisherRepository)

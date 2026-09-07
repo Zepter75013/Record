@@ -505,6 +505,17 @@
                           {{ formData.notes?.length || 0 }}/500
                         </div>
                       </div>
+                      <div v-if="discData" class="form-group full-width">
+                        <label for="discogs_notes">Notes Discogs</label>
+                        <textarea id="discogs_notes" v-model="formData.discogs_notes"
+                          placeholder="Infos de pressage/édition récupérées depuis Discogs..." class="form-textarea" rows="2"
+                          :disabled="isSaving"></textarea>
+                        <DiscogsTracklistRefresh
+                          :disc="discData"
+                          @tracks-updated="handleDiscogsTracksUpdated"
+                          @disc-updated="handleDiscogsDiscUpdated"
+                        />
+                      </div>
                     </div>
                   </div>
                   
@@ -673,6 +684,7 @@ import FormatsModal from '@/components/FormatsModal.vue'
 import CountriesModal from '@/components/CountriesModal.vue'
 import LabelsModal from '@/components/LabelsModal.vue'
 import BarcodeScanner from '@/components/BarcodeScanner.vue'
+import DiscogsTracklistRefresh from '@/components/DiscogsTracklistRefresh.vue'
 
 // === Props et Emits ===
 const props = defineProps({
@@ -681,7 +693,21 @@ const props = defineProps({
   apiError: String,
   isSaving: Boolean
 })
-const emit = defineEmits(['close', 'save', 'edit-existing-disc', 'createArtist'])
+const emit = defineEmits(['close', 'save', 'edit-existing-disc', 'createArtist', 'tracks-updated', 'disc-updated'])
+
+// <DiscogsTracklistRefresh> ne connaît que le disque courant — c'est à
+// l'appelant de répercuter le résultat. Les pistes ne sont pas gérées ici
+// (voir TracklistModal.vue, ouvert depuis DiscsView.vue), donc on relaie
+// juste vers le parent pour tenir à jour l'indicateur "has_tracks" de la
+// liste. Le commentaire Discogs, lui, est affiché ici : on le répercute
+// aussi dans le formulaire en cours.
+const handleDiscogsTracksUpdated = (tracks) => {
+  emit('tracks-updated', { discId: props.discData?.id, hasTracks: tracks.length > 0 })
+}
+const handleDiscogsDiscUpdated = (updated) => {
+  formData.value.discogs_notes = updated.discogs_notes || ''
+  emit('disc-updated', updated)
+}
 
 const { apiFetch, upload } = useApi()
 
@@ -783,7 +809,8 @@ const formData = ref({
   price: null,
   quantity: 1,
   notes: '',
-  cover_image: null
+  cover_image: null,
+  discogs_notes: ''
 })
 const originalFormData = ref(null)
 
@@ -920,7 +947,8 @@ const initForm = () => {
       quantity: disc.quantity != null ? parseInt(disc.quantity) : 1,
       notes: disc.notes || '',
       cover_image: disc.cover_image || disc.cover_url || null,
-      isrc: disc.isrc || null
+      isrc: disc.isrc || null,
+      discogs_notes: disc.discogs_notes || ''
     }
 
     originalFormData.value = JSON.parse(JSON.stringify(formData.value))
@@ -974,7 +1002,8 @@ const resetForm = () => {
     price: null,
     quantity: 1,
     notes: '',
-    cover_image: null
+    cover_image: null,
+    discogs_notes: ''
   }
   currentCoverUrl.value = null
   resetPreview()
