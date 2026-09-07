@@ -11,7 +11,7 @@
 
   <Teleport to="body">
     <Transition name="modal-fade">
-      <div v-if="isPreviewModalOpen" class="modal-overlay" @click.self="cancelPreview">
+      <div v-if="isPreviewModalOpen" class="modal-overlay preview-tracklist-overlay" @click.self="cancelPreview">
         <div class="modal-card preview-tracklist-card">
           <div class="modal-header">
             <h2>🔄 Tracklist trouvée sur Discogs</h2>
@@ -186,6 +186,20 @@ const applyPreview = async () => {
 .discogs-refresh-btn:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+/* Ce composant peut s'ouvrir depuis DiscsModal.vue (bouton dans son champ
+   "Notes Discogs"), dont l'overlay est à z-index: 9999 — sans ce z-index
+   dédié plus élevé, cette modale hérite du .modal-overlay partagé
+   (z-index: 50, App.vue) et se retrouve visuellement DERRIÈRE celui de
+   DiscsModal : visible en transparence, mais tous les clics (dont
+   "Valider et remplacer") sont interceptés par l'overlay du dessus, sans
+   jamais déclencher la moindre requête. Même piège déjà documenté et
+   corrigé dans DiscsModal.vue pour ses propres modales imbriquées
+   (.barcode-conflict-overlay, .unsaved-changes-overlay, toutes deux à
+   10000). */
+.preview-tracklist-overlay {
+  z-index: 10000;
 }
 
 .preview-tracklist-card {
