@@ -87,6 +87,7 @@ type CoverPreview struct {
 	Results  []DiscogsResult `json:"results,omitempty"`
 	Prices   *DiscogsPrice   `json:"prices,omitempty"`
 	Tracks   []TrackItem     `json:"tracklist,omitempty"`
+	Notes    string          `json:"notes,omitempty"`
 }
 
 // === Méthodes existantes inchangées jusqu’à getDiscogsPrices ===
@@ -420,13 +421,13 @@ func (s *DiscService) UpdateTracksForDisc(ctx context.Context, discID int, items
 // souvent le même titre/artiste mais des tracklists différentes, et une
 // recherche texte ne peut pas les distinguer.
 // Lecture seule — n'écrit rien en base, laisse l'appelant décider.
-func (s *DiscService) searchDiscogsTracklist(ctx context.Context, discID int) ([]tracks.Track, error) {
+func (s *DiscService) searchDiscogsTracklist(ctx context.Context, discID int) ([]tracks.Track, string, error) {
 	disc, err := s.repo.FindByID(ctx, discID)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if disc == nil {
-		return nil, fmt.Errorf("disque introuvable")
+		return nil, "", fmt.Errorf("disque introuvable")
 	}
 
 	var releaseID int64
@@ -435,16 +436,16 @@ func (s *DiscService) searchDiscogsTracklist(ctx context.Context, discID int) ([
 	} else {
 		releaseID, err = s.findReleaseIDByTitleArtist(disc.Title, disc.ArtistName)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 	}
 
 	preview, err := s.getDiscogsReleaseDetails(releaseID)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if len(preview.Tracks) == 0 {
-		return nil, fmt.Errorf("aucune piste trouvée sur Discogs")
+		return nil, "", fmt.Errorf("aucune piste trouvée sur Discogs")
 	}
 
 	trackList := make([]tracks.Track, len(preview.Tracks))
@@ -457,7 +458,7 @@ func (s *DiscService) searchDiscogsTracklist(ctx context.Context, discID int) ([
 	// (API publique, sans clé) qui renvoie une durée exacte en secondes.
 	s.fillMissingDurationsFromDeezer(disc.ArtistName, trackList)
 
-	return trackList, nil
+	return trackList, preview.Notes, nil
 }
 
 type deezerTrackSearchResult struct {
@@ -502,7 +503,7 @@ func (s *DiscService) FetchTracklistForDisc(ctx context.Context, discID int) ([]
 		return existing, nil
 	}
 
-	trackList, err := s.searchDiscogsTracklist(ctx, discID)
+	trackList, _, err := s.searchDiscogsTracklist(ctx, discID)
 	if err != nil {
 		return nil, err
 	}
@@ -513,11 +514,25 @@ func (s *DiscService) FetchTracklistForDisc(ctx context.Context, discID int) ([]
 	return s.trackRepo.FindByVinylID(ctx, discID)
 }
 
-// PreviewTracklistForDisc recherche une tracklist sur Discogs SANS la
-// sauvegarder, pour que l'utilisateur puisse voir la proposition avant de
-// valider (ou annuler) un remplacement de tracklist existante.
-func (s *DiscService) PreviewTracklistForDisc(ctx context.Context, discID int) ([]tracks.Track, error) {
-	return s.searchDiscogsTracklist(ctx, discID)
+// TracklistPreview regroupe la tracklist proposée et, si Discogs en a une,
+// une suggestion de commentaire (notes de pressage/édition — ex: "Limited
+// edition orange vinyl") — l'utilisateur choisit ce qu'il valide, rien
+// n'est jamais écrasé silencieusement.
+type TracklistPreview struct {
+	Tracks []tracks.Track `json:"tracks"`
+	Notes  string         `json:"notes,omitempty"`
+}
+
+// PreviewTracklistForDisc recherche une tracklist (et un commentaire
+// éventuel) sur Discogs SANS rien sauvegarder, pour que l'utilisateur
+// puisse voir la proposition avant de valider (ou annuler) un
+// remplacement de tracklist existante.
+func (s *DiscService) PreviewTracklistForDisc(ctx context.Context, discID int) (*TracklistPreview, error) {
+	trackList, notes, err := s.searchDiscogsTracklist(ctx, discID)
+	if err != nil {
+		return nil, err
+	}
+	return &TracklistPreview{Tracks: trackList, Notes: notes}, nil
 }
 
 func (s *DiscService) searchDiscogsByBarcode(barcode string) (*CoverPreview, error) {
@@ -831,6 +846,7 @@ func (s *DiscService) getDiscogsReleaseDetails(releaseID int64) (*CoverPreview, 
 			Title    string `json:"title"`
 			Duration string `json:"duration"`
 		} `json:"tracklist"`
+		Notes string `json:"notes"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
 		return nil, err
@@ -870,6 +886,7 @@ func (s *DiscService) getDiscogsReleaseDetails(releaseID int64) (*CoverPreview, 
 		Found:    true,
 		Prices:   prices,
 		Tracks:   tracks,
+		Notes:    strings.TrimSpace(release.Notes),
 	}, nil
 }
 

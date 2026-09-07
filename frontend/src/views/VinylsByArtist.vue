@@ -167,13 +167,21 @@ const isApplyingPreview = ref(false)
 const previewTracklistTracks = ref([])
 const previewGroups = computed(() => groupTracksByDiscSide(previewTracklistTracks.value))
 const previewTotalDuration = computed(() => formatDuration(sumDuration(previewTracklistTracks.value)))
+// Commentaire suggéré par Discogs (notes de pressage/édition, ex: "Limited
+// edition orange vinyl") — coché par défaut seulement si le disque n'a pas
+// déjà un commentaire, pour ne jamais écraser une note existante sans
+// action explicite de l'utilisateur.
+const previewNotesSuggestion = ref('')
+const applyNotesSuggestion = ref(false)
 
 const refetchTracksFromInternet = async (vinyl) => {
   if (!vinyl?.id) return
   isRefetchingTracks.value = true
   try {
     const result = await previewTracklist(vinyl.id)
-    previewTracklistTracks.value = result || []
+    previewTracklistTracks.value = result?.tracks || []
+    previewNotesSuggestion.value = (result?.notes || '').trim()
+    applyNotesSuggestion.value = !!previewNotesSuggestion.value && !vinyl.notes?.trim()
     if (!previewTracklistTracks.value.length) {
       alert('Aucune piste trouvée sur Discogs pour ce disque.')
       return
@@ -189,6 +197,7 @@ const refetchTracksFromInternet = async (vinyl) => {
 const cancelTracklistPreview = () => {
   isPreviewModalOpen.value = false
   previewTracklistTracks.value = []
+  previewNotesSuggestion.value = ''
 }
 
 const applyTracklistPreview = async () => {
@@ -200,8 +209,35 @@ const applyTracklistPreview = async () => {
     const found = vinylTracks.value.length > 0
     const localVinyl = vinyls.value.find((v) => v.id === selectedVinyl.value.id)
     if (localVinyl) localVinyl.has_tracks = found
+
+    if (applyNotesSuggestion.value && previewNotesSuggestion.value) {
+      const vinyl = selectedVinyl.value
+      const updated = await apiFetch(`discs/${vinyl.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          title: vinyl.title,
+          artist_id: vinyl.artist_id,
+          genre_id: vinyl.genre_id || null,
+          format_id: vinyl.format_id || null,
+          country_id: vinyl.country_id || null,
+          label_id: vinyl.label_id || null,
+          release_year: vinyl.release_year || null,
+          barcode: vinyl.barcode || null,
+          price: vinyl.price ?? null,
+          quantity: vinyl.quantity || 1,
+          notes: previewNotesSuggestion.value,
+          isrc: vinyl.isrc || null
+        }),
+        headers: { 'Content-Type': 'application/json' }
+      })
+      const idx = vinyls.value.findIndex((v) => v.id === updated.id)
+      if (idx !== -1) vinyls.value.splice(idx, 1, updated)
+      if (selectedVinyl.value?.id === updated.id) selectedVinyl.value = updated
+    }
+
     isPreviewModalOpen.value = false
     previewTracklistTracks.value = []
+    previewNotesSuggestion.value = ''
   } catch (err) {
     alert(`Échec de l'enregistrement des pistes : ${err.message}`)
   } finally {
@@ -967,6 +1003,13 @@ onMounted(() => {
             </ol>
           </div>
 
+          <label v-if="previewNotesSuggestion" class="preview-notes-suggestion">
+            <input type="checkbox" v-model="applyNotesSuggestion" />
+            <span class="preview-notes-text">
+              <strong>Commentaire trouvé sur Discogs :</strong> « {{ previewNotesSuggestion }} »
+            </span>
+          </label>
+
           <div class="modal-actions">
             <button type="button" class="ghost-btn" :disabled="isApplyingPreview" @click="cancelTracklistPreview">
               Annuler
@@ -996,6 +1039,29 @@ onMounted(() => {
   margin: 0 0 14px 0;
   color: var(--text-soft);
   line-height: 1.5;
+}
+
+.preview-notes-suggestion {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: rgba(var(--tint-rgb), 0.05);
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.preview-notes-suggestion input[type='checkbox'] {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.preview-notes-text {
+  color: var(--text-soft);
+  font-size: 0.9em;
+  line-height: 1.4;
 }
 
 .preview-tracklist {
