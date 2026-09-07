@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { fetchTracks, fetchTracklistOnDemand, updateTracks } from '../services/tracks'
-import { groupTracksByDiscSide, discSideToLetter, isCdFormat } from '../utils/discSides'
+import { groupTracksByDiscSide, discSideToLetter, isCdFormat, formatDuration, sumDuration } from '../utils/discSides'
 import StreamingButtons from './StreamingButtons.vue'
 
 const props = defineProps({
@@ -36,6 +36,8 @@ const isCd = computed(() => isCdFormat(props.disc?.format_name))
 
 // Regroupement pour l'affichage (lecture seule) : Disque N > Face A/B.
 const groupedTracks = computed(() => groupTracksByDiscSide(tracks.value))
+const grandTotalSeconds = computed(() => sumDuration(tracks.value))
+const totalDuration = computed(() => formatDuration(grandTotalSeconds.value))
 
 watch(
   () => props.modelValue,
@@ -407,6 +409,10 @@ function getImageUrl(path, cacheBuster = null) {
             <StreamingButtons :disc="disc" :track="track" inline />
           </li>
         </ol>
+
+        <p v-if="grandTotalSeconds" class="tracklist-grand-total">
+          Durée totale : <strong>{{ totalDuration }}</strong>
+        </p>
       </template>
 
       <div v-else-if="hasLoaded" class="tracklist-state tracklist-empty">
@@ -443,7 +449,7 @@ function getImageUrl(path, cacheBuster = null) {
      colonnes Face A/B côte à côte, chacune n'a plus qu'environ 320px —
      trop étroit pour des titres plus longs ("Blasphemous Rumours", "101
      (Documentary Film)"...), qui passaient sur 2-3 lignes. */
-  width: min(900px, 95vw);
+  width: min(1100px, 95vw);
   animation: modal-pop-in 180ms ease;
   transform-origin: center;
 }
@@ -526,6 +532,17 @@ function getImageUrl(path, cacheBuster = null) {
   gap: 0.3rem;
   max-height: 50vh;
   overflow-y: auto;
+}
+
+.tracklist-grand-total {
+  margin: 0.75rem 0 0 0;
+  text-align: right;
+  color: var(--text-dim);
+  font-size: 0.9em;
+}
+
+.tracklist-grand-total strong {
+  color: var(--text);
 }
 
 .tracklist-item {
